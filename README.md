@@ -18,3 +18,7 @@ The documentation is organized from business understanding to technical implemen
 4. Process and Domain Modeling
 5. Architecture and Technical Design
 6. Delivery Planning
+
+## Implementation Guardrails
+
+Implementation work should follow `docs/implementation-guardrails.md` for issue scope, branch naming, PR validation, architecture boundaries, MVP limits, and Definition of Done.
