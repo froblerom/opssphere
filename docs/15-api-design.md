@@ -73,7 +73,7 @@ The API should support the following goals:
 
 ## 3. API Base Path
 
-All API endpoints should use the following base path:
+Business API endpoints should use the following base path:
 
 ```text
 /api
@@ -84,6 +84,8 @@ Example:
 ```http
 GET /api/tickets
 ```
+
+Health check endpoints are operational endpoints and intentionally do not use the `/api` base path.
 
 ---
 
@@ -2473,12 +2475,22 @@ OperationsManager
 
 ---
 
-# 21. Health API
+# 21. Health Endpoints
+
+Health checks are operational readiness and liveness endpoints, not business API resources.
+
+They intentionally do not use the `/api` base path.
 
 ## 21.1 Health Check
 
 ```http
-GET /api/health
+GET /health
+```
+
+Optional detailed endpoint:
+
+```http
+GET /health/details
 ```
 
 Required authorization:
@@ -2634,7 +2646,8 @@ GET /api/audit-logs/entity/{entityType}/{entityId}
 ## 22.10 Health
 
 ```http
-GET /api/health
+GET /health
+GET /health/details
 ```
 
 ---
