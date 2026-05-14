@@ -66,7 +66,35 @@ Server=localhost,1433;Database=OpsSphereDb;User Id=sa;Password=<YOUR_LOCAL_SA_PA
 | `docker compose down` | Stop containers (data preserved) |
 | `docker compose down -v` | Stop and delete local database volume |
 
-> **Note:** EF Core migrations and seed data are out of scope for this infrastructure setup. This Docker Compose configuration is for local development only — not for production or CI.
+> **Note:** This Docker Compose configuration is for local development only — not for production or CI.
+
+## EF Core Migrations
+
+### Prerequisites
+- SQL Server running locally (via Docker Compose above)
+- Set your local password in `.env` (copy from `.env.example`)
+- Update `appsettings.Development.json` with your local password (do not commit)
+
+### Manage Migrations
+
+**List migrations:**
+```bash
+dotnet ef migrations list --project src/OpsSphere.Infrastructure --startup-project src/OpsSphere.Api
+```
+
+**Apply migration to local database:**
+```bash
+dotnet ef database update --project src/OpsSphere.Infrastructure --startup-project src/OpsSphere.Api
+```
+
+**Add a new migration (development only):**
+```bash
+dotnet ef migrations add <MigrationName> --project src/OpsSphere.Infrastructure --startup-project src/OpsSphere.Api --output-dir Persistence/Migrations
+```
+
+> **Security:** Never commit `.env` or real passwords. Use `appsettings.Development.json` (gitignored locally), .NET user secrets, or environment variables.
+> **Seed data:** No seed data is included in this migration. The database is created schema-only.
+> **Local only:** These commands apply to local development. Do not apply migrations directly to production.
 
 ### Frontend API Base URL
 The Angular development environment is configured in `frontend/src/environments/environment.development.ts`. The `apiBaseUrl` property should point to your locally running backend API (e.g., `http://localhost:5000/api` or `https://localhost:7024/api` per `launchSettings.json`).
