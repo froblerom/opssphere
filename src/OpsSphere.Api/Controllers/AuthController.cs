@@ -2,6 +2,8 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using OpsSphere.Api.Common;
+using OpsSphere.Application.Common.Interfaces;
 using OpsSphere.Application.Features.Auth;
 using OpsSphere.Application.Features.Auth.GetCurrentUser;
 using OpsSphere.Application.Features.Auth.Login;
@@ -14,13 +16,16 @@ public sealed class AuthController : ControllerBase
 {
     private readonly LoginCommandHandler loginCommandHandler;
     private readonly GetCurrentUserQueryHandler getCurrentUserQueryHandler;
+    private readonly ICorrelationIdAccessor correlationIdAccessor;
 
     public AuthController(
         LoginCommandHandler loginCommandHandler,
-        GetCurrentUserQueryHandler getCurrentUserQueryHandler)
+        GetCurrentUserQueryHandler getCurrentUserQueryHandler,
+        ICorrelationIdAccessor correlationIdAccessor)
     {
         this.loginCommandHandler = loginCommandHandler;
         this.getCurrentUserQueryHandler = getCurrentUserQueryHandler;
+        this.correlationIdAccessor = correlationIdAccessor;
     }
 
     [AllowAnonymous]
@@ -33,7 +38,7 @@ public sealed class AuthController : ControllerBase
 
         if (!result.Succeeded || result.Value is null)
         {
-            return Unauthorized(Error(result.Error!));
+            return Unauthorized(Error(result.Error!.Code, result.Error.Message));
         }
 
         return Ok(new ApiResponse<LoginResult>(result.Value));
@@ -52,7 +57,7 @@ public sealed class AuthController : ControllerBase
         var result = await getCurrentUserQueryHandler.HandleAsync(new GetCurrentUserQuery(userId.Value), cancellationToken);
         if (!result.Succeeded || result.Value is null)
         {
-            return Unauthorized(Error(result.Error!));
+            return Unauthorized(Error(result.Error!.Code, result.Error.Message));
         }
 
         return Ok(new ApiResponse<CurrentUserProfile>(result.Value));
@@ -73,19 +78,10 @@ public sealed class AuthController : ControllerBase
         return Guid.TryParse(subject, out var userId) ? userId : null;
     }
 
-    private static ApiErrorResponse Error(AuthFailure failure) =>
-        Error(failure.Code, failure.Message);
-
-    private static ApiErrorResponse Error(string code, string message) =>
-        new(new ApiError(code, message));
+    private ApiErrorEnvelope Error(string code, string message) =>
+        new(new ApiError(code, message, CorrelationId: correlationIdAccessor.CorrelationId));
 
     public sealed record LoginRequest(string? Email, string? Password);
 
     public sealed record ProtectedSmokeResponse(string Status);
-
-    public sealed record ApiResponse<T>(T Data);
-
-    public sealed record ApiErrorResponse(ApiError Error);
-
-    public sealed record ApiError(string Code, string Message);
 }

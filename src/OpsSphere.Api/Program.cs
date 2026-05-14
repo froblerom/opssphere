@@ -3,16 +3,30 @@ using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using OpsSphere.Api.Authorization;
+using OpsSphere.Api.Common;
+using OpsSphere.Api.Health;
+using OpsSphere.Api.Middleware;
 using OpsSphere.Application;
 using OpsSphere.Application.Common.Interfaces;
 using OpsSphere.Domain.Authorization;
 using OpsSphere.Infrastructure;
 using OpsSphere.Infrastructure.Authentication;
+using OpsSphere.Infrastructure.Persistence;
 using OpsSphere.Infrastructure.Persistence.SeedData;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((context, services, configuration) =>
+    configuration
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext()
+        .WriteTo.Console(outputTemplate:
+            "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}"));
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
@@ -41,9 +55,14 @@ builder.Services
             RoleClaimType = ClaimTypes.Role
         };
     });
+
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserContext, CurrentUserContext>();
+builder.Services.AddScoped<ICorrelationIdAccessor, CorrelationIdAccessor>();
 builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
+builder.Services.AddHealthChecks()
+    .AddCheck<DatabaseHealthCheck>("database")
+    .AddCheck<ConfigurationHealthCheck>("configuration");
 builder.Services.AddAuthorization(options =>
 {
     // Register one named policy per permission code — policy name equals permission code
@@ -66,12 +85,48 @@ if (SeedDataStartupGate.ShouldRun(app.Environment.EnvironmentName, seedDataEnabl
     await seeder.SeedAsync();
 }
 
-app.UseHttpsRedirection();
+// Correlation ID first — ensures every subsequent middleware and log has the correlation ID
+app.UseMiddleware<CorrelationIdMiddleware>();
 
+// Global exception handling after correlation ID so error responses include correlation ID
+app.UseMiddleware<GlobalExceptionHandlingMiddleware>();
+
+// Serilog request logging — enriches logs with CorrelationId and UserId from HttpContext
+app.UseSerilogRequestLogging(options =>
+{
+    options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+    {
+        var correlationId = httpContext.Items[CorrelationIdMiddleware.ItemsKey] as string;
+        if (!string.IsNullOrWhiteSpace(correlationId))
+        {
+            diagnosticContext.Set("CorrelationId", correlationId);
+        }
+
+        var userId = httpContext.User?.FindFirstValue(JwtRegisteredClaimNames.Sub)
+            ?? httpContext.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!string.IsNullOrWhiteSpace(userId))
+        {
+            diagnosticContext.Set("UserId", userId);
+        }
+    };
+});
+
+app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
+
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    ResponseWriter = HealthResponseWriter.WriteSimpleAsync,
+    AllowCachingResponses = false
+});
+
+app.MapHealthChecks("/health/details", new HealthCheckOptions
+{
+    ResponseWriter = HealthResponseWriter.WriteDetailsAsync,
+    AllowCachingResponses = false
+});
 
 app.Run();
 
