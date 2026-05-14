@@ -93,8 +93,58 @@ dotnet ef migrations add <MigrationName> --project src/OpsSphere.Infrastructure 
 ```
 
 > **Security:** Never commit `.env` or real passwords. Use `appsettings.Development.json` (gitignored locally), .NET user secrets, or environment variables.
-> **Seed data:** No seed data is included in this migration. The database is created schema-only.
+> **Seed data:** Fictional seed data is applied by the API at startup only when the environment is `Development` or `Testing` and `SeedData:Enabled` is `true`.
 > **Local only:** These commands apply to local development. Do not apply migrations directly to production.
+
+## Local Seed Data
+
+OpsSphere includes deterministic fictional seed data for local development, demos, and automated tests. The seed uses fixed IDs and natural keys so it can be run repeatedly without creating duplicates.
+
+Seed execution is intentionally runtime-based through Infrastructure, not EF migration `HasData`. It runs only when both conditions are true:
+
+- ASP.NET Core environment is `Development` or `Testing`
+- `SeedData:Enabled` is `true`
+
+The local demo users are:
+
+| Email | Role | Scope |
+|---|---|---|
+| `admin@opssphere.local` | Admin | Role-based administrative access |
+| `manager.latam@opssphere.local` | OperationsManager | LATAM region |
+| `supervisor.novabank@opssphere.local` | Supervisor | NOVABANK account |
+| `agent.novabank@opssphere.local` | Agent | NOVABANK-CC campaign |
+| `viewer.latam@opssphere.local` | Viewer | LATAM region |
+
+The local/demo password is `OpsSphere123!`. It is hashed before persistence and is not stored as plaintext or logged. This password is for local development and demos only.
+
+Seeded organization data is fictional:
+
+- Regions: LATAM / Latin America, NA / North America
+- Countries: MX / Mexico, CO / Colombia, CR / Costa Rica, US / United States
+- Accounts: NovaBank, Streamly, Shopora, AeroLink
+- Campaigns: Credit Card Support, Fraud Review Support, Creator Support, Account Access Support, Travel Support
+
+No production secrets, real company data, customer data, employee data, tokens, or production credentials are committed.
+
+### Local Apply Flow
+
+```bash
+docker compose up -d
+dotnet restore OpsSphere.slnx
+dotnet build OpsSphere.slnx
+dotnet ef database update --project src/OpsSphere.Infrastructure --startup-project src/OpsSphere.Api
+dotnet run --project src/OpsSphere.Api
+dotnet test OpsSphere.slnx
+```
+
+### Local Reset Flow
+
+```bash
+docker compose down -v
+docker compose up -d
+dotnet ef database update --project src/OpsSphere.Infrastructure --startup-project src/OpsSphere.Api
+dotnet run --project src/OpsSphere.Api
+```
 
 ### Frontend API Base URL
 The Angular development environment is configured in `frontend/src/environments/environment.development.ts`. The `apiBaseUrl` property should point to your locally running backend API (e.g., `http://localhost:5000/api` or `https://localhost:7024/api` per `launchSettings.json`).
