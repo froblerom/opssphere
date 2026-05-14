@@ -279,7 +279,7 @@ The system may include basic CSV export or reporting-ready views, but it should 
 
 The MVP includes the following technical foundation:
 
-- .NET 8 backend.
+- .NET 10 backend.
 - ASP.NET Core Web API.
 - Entity Framework Core.
 - SQL Server.

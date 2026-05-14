@@ -96,7 +96,7 @@ The local environment should support:
 
 | Area | Technology |
 |---|---|
-| Backend | .NET 8 / ASP.NET Core Web API |
+| Backend | .NET 10 / ASP.NET Core Web API |
 | Frontend | Angular / TypeScript |
 | Database | SQL Server |
 | ORM | Entity Framework Core |

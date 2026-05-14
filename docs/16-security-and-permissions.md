@@ -10,7 +10,7 @@
 | Version | 1.0 |
 | Status | Draft |
 | Project Type | Enterprise Support Operations Platform |
-| Backend | .NET 8 / ASP.NET Core Web API |
+| Backend | .NET 10 / ASP.NET Core Web API |
 | Authentication | JWT |
 | Authorization | RBAC + Scope-Based Access Control |
 | Related Issue | #5 |

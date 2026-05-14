@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/OpsSphere.Api/OpsSphere.Api.csproj" />
+    <Project Path="src/OpsSphere.Application/OpsSphere.Application.csproj" />
+    <Project Path="src/OpsSphere.Domain/OpsSphere.Domain.csproj" />
+    <Project Path="src/OpsSphere.Infrastructure/OpsSphere.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/OpsSphere.Application.Tests/OpsSphere.Application.Tests.csproj" />
+    <Project Path="tests/OpsSphere.Domain.Tests/OpsSphere.Domain.Tests.csproj" />
+    <Project Path="tests/OpsSphere.IntegrationTests/OpsSphere.IntegrationTests.csproj" />
+  </Folder>
+</Solution>
