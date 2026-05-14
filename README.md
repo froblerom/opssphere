@@ -11,6 +11,18 @@ dotnet build OpsSphere.slnx
 dotnet test OpsSphere.slnx
 ```
 
+## Frontend Local Validation
+
+The Angular frontend lives under `frontend/`, uses Angular Material for the MVP UI foundation, and follows the `/api` base URL convention for business API calls.
+
+```bash
+cd frontend
+npm install
+npm run build
+npm run test
+npm start
+```
+
 ## Documentation Approach
 
 OpsSphere follows a practical enterprise documentation workflow inspired by:

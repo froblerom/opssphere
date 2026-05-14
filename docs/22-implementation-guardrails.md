@@ -130,9 +130,10 @@ Security boundary:
 - Frontend visibility never replaces backend authorization.
 - Backend authorization remains the security boundary.
 
-Current issue boundary:
+Frontend foundation boundary:
 
-- This issue does not add Angular components.
+- Foundation issues may add only shell and placeholder Angular components.
+- Business screens such as login, dashboard, tickets, customers, users, SLA, audit, and reports should wait for explicitly scoped feature issues.
 
 ## Database Guardrails
 
