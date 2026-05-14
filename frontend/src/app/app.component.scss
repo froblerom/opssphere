@@ -20,6 +20,13 @@
   flex: 1 1 auto;
 }
 
+.app-toolbar a,
+.app-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
 .app-shell {
   width: min(1120px, calc(100% - 2rem));
   margin: 0 auto;

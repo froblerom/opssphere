@@ -1,7 +1,20 @@
 import { CanActivateFn } from '@angular/router';
+import { inject } from '@angular/core';
+import { Router } from '@angular/router';
 
-export const authGuard: CanActivateFn = () => {
-  // Future work: evaluate frontend auth state for navigation UX only.
-  // Backend authorization remains the source of truth for role and scope access.
-  return true;
+import { AuthService } from '../auth/auth.service';
+
+export const authGuard: CanActivateFn = (_route, state) => {
+  const authService = inject(AuthService);
+  const router = inject(Router);
+
+  if (authService.getAccessToken()) {
+    return true;
+  }
+
+  return router.createUrlTree(['/login'], {
+    queryParams: {
+      returnUrl: state.url
+    }
+  });
 };

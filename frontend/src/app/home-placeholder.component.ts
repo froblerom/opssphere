@@ -6,10 +6,10 @@ import { MatIconModule } from '@angular/material/icon';
   imports: [MatIconModule],
   template: `
     <section class="home-placeholder" aria-labelledby="home-title">
-      <mat-icon aria-hidden="true">settings_applications</mat-icon>
-      <div>
-        <h1 id="home-title">Frontend foundation</h1>
-        <p>Angular shell, routing, Material, and core extension points are ready for future feature work.</p>
+        <mat-icon aria-hidden="true">settings_applications</mat-icon>
+        <div>
+        <h1 id="home-title">Dashboard shell</h1>
+        <p>Authenticated routing is ready for future operational workflows.</p>
       </div>
     </section>
   `,
