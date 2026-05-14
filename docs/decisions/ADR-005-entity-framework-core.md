@@ -31,7 +31,7 @@ The system must persist and query operational data related to:
 - Audit logs
 ```
 
-The backend is built with .NET 8 and ASP.NET Core Web API using Clean Architecture.
+The backend is built with .NET 10 and ASP.NET Core Web API using Clean Architecture.
 
 Because the system has a relational domain model, strong business workflows, audit requirements, and reporting-ready data needs, the data access strategy must support:
 
@@ -97,7 +97,7 @@ Used correctly, EF Core can support Clean Architecture by remaining inside Infra
 
 ### Positive Consequences
 
-- EF Core works naturally with .NET 8 and ASP.NET Core.
+- EF Core works naturally with .NET 10 and ASP.NET Core.
 - EF Core integrates well with SQL Server.
 - Migrations provide a controlled way to evolve the database schema.
 - Relationships, constraints, and indexes can be configured in code.

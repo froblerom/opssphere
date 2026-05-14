@@ -272,7 +272,7 @@ For OpsSphere, the main containers are:
 | Container | Technology | Responsibility |
 |---|---|---|
 | Angular Frontend | Angular, TypeScript | Provides user interface for login, dashboards, tickets, customers, users, SLA, audit, and reports. |
-| ASP.NET Core Web API | .NET 8, ASP.NET Core | Exposes REST API endpoints and coordinates application use cases. |
+| ASP.NET Core Web API | .NET 10, ASP.NET Core | Exposes REST API endpoints and coordinates application use cases. |
 | Application Layer | .NET, MediatR | Handles commands, queries, validation, authorization coordination, and workflow orchestration. |
 | Domain Layer | .NET class library | Contains entities, enums, value objects, domain rules, and business invariants. |
 | Infrastructure Layer | EF Core, SQL Server integrations | Implements persistence, authentication services, logging, and technical integrations. |
@@ -890,7 +890,7 @@ flowchart LR
 
     subgraph OpsSphere[OpsSphere System Boundary]
         Frontend[Angular Frontend<br/>TypeScript]
-        Api[ASP.NET Core Web API<br/>.NET 8]
+        Api[ASP.NET Core Web API<br/>.NET 10]
         Worker[Background Worker<br/>Hosted Service / .NET Worker]
         Database[(SQL Server Database)]
     end

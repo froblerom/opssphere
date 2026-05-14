@@ -1,5 +1,15 @@
 # opssphere
-Enterprise Support Operations Platform built with .NET 8, Angular, SQL Server, Clean Architecture, CQRS, JWT authentication, role-based authorization, audit logging, Docker and CI/CD.
+Enterprise Support Operations Platform built with .NET 10, Angular, SQL Server, Clean Architecture, CQRS, JWT authentication, role-based authorization, audit logging, Docker and CI/CD.
+
+## Backend Local Validation
+
+The backend solution uses `OpsSphere.slnx` and targets .NET 10.
+
+```bash
+dotnet restore OpsSphere.slnx
+dotnet build OpsSphere.slnx
+dotnet test OpsSphere.slnx
+```
 
 ## Documentation Approach
 
@@ -21,4 +31,4 @@ The documentation is organized from business understanding to technical implemen
 
 ## Implementation Guardrails
 
-Implementation work should follow `docs/implementation-guardrails.md` for issue scope, branch naming, PR validation, architecture boundaries, MVP limits, and Definition of Done.
+Implementation work should follow `docs/22-implementation-guardrails.md` for issue scope, branch naming, PR validation, architecture boundaries, MVP limits, and Definition of Done.

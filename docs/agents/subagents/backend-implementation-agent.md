@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Implement backend features for OpsSphere using .NET 8, ASP.NET Core Web API, Clean Architecture, CQRS with MediatR, Entity Framework Core, SQL Server, JWT authentication, role-based authorization, permission-based authorization, scope-based authorization, and auditability.
+Implement backend features for OpsSphere using .NET 10, ASP.NET Core Web API, Clean Architecture, CQRS with MediatR, Entity Framework Core, SQL Server, JWT authentication, role-based authorization, permission-based authorization, scope-based authorization, and auditability.
 
 ---
 

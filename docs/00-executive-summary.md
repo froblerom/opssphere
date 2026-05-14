@@ -70,7 +70,7 @@ OpsSphere is designed as a modern full stack enterprise application using techno
 
 The technical stack includes:
 
-- **Backend**: .NET 8, ASP.NET Core Web API, Entity Framework Core, SQL Server.
+- **Backend**: .NET 10, ASP.NET Core Web API, Entity Framework Core, SQL Server.
 - **Architecture**: Clean Architecture, CQRS with MediatR, separation of concerns, maintainable domain-centered design.
 - **Security**: JWT authentication and role-based authorization.
 - **Frontend**: Angular, TypeScript, RxJS, Reactive Forms, Angular Material or Tailwind.

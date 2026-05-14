@@ -10,7 +10,7 @@
 | Version | 1.0 |
 | Status | Draft |
 | Project Type | Enterprise Support Operations Platform |
-| Backend | .NET 8 / ASP.NET Core Web API |
+| Backend | .NET 10 / ASP.NET Core Web API |
 | Architecture | Clean Architecture / CQRS with MediatR |
 | Related Issue | #5 |
 

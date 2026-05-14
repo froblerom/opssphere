@@ -24,7 +24,7 @@ Use this file when the task touches:
 OpsSphere backend uses:
 
 ```text
-.NET 8
+.NET 10
 ASP.NET Core Web API
 Clean Architecture
 CQRS with MediatR

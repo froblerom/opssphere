@@ -69,7 +69,7 @@ tests/
 
 Backend implementation uses:
 
-- .NET 8.
+- .NET 10.
 - ASP.NET Core Web API.
 - Clean Architecture.
 - Inward dependency direction.

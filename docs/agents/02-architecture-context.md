@@ -54,7 +54,7 @@ External integrations
 
 | Area | Technology |
 |---|---|
-| Backend Framework | .NET 8 |
+| Backend Framework | .NET 10 |
 | API Layer | ASP.NET Core Web API |
 | Application Pattern | CQRS with MediatR |
 | Persistence | Entity Framework Core |

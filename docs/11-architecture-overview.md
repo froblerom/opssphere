@@ -11,7 +11,7 @@
 | Status | Draft |
 | Project Type | Enterprise Support Operations Platform |
 | Architecture Style | Clean Architecture |
-| Backend | .NET 8 / ASP.NET Core Web API |
+| Backend | .NET 10 / ASP.NET Core Web API |
 | Frontend | Angular / TypeScript |
 | Database | SQL Server |
 | Related Issue | #5 |
@@ -40,7 +40,7 @@ The main architecture goals are:
 
 1. Keep business logic separated from controllers, UI, and infrastructure.
 2. Use Clean Architecture to protect the domain and application layers.
-3. Build the backend using .NET 8 and ASP.NET Core Web API.
+3. Build the backend using .NET 10 and ASP.NET Core Web API.
 4. Build the frontend using Angular and TypeScript.
 5. Use SQL Server as the primary relational database.
 6. Use Entity Framework Core for persistence.
@@ -85,7 +85,7 @@ OpsSphere will use the following technical stack:
 
 | Area | Technology |
 |---|---|
-| Backend Framework | .NET 8 |
+| Backend Framework | .NET 10 |
 | API Layer | ASP.NET Core Web API |
 | Application Pattern | CQRS with MediatR |
 | Persistence | Entity Framework Core |
@@ -274,7 +274,7 @@ The domain and application layers should not depend on the API, frontend, databa
 
 ## 4.2 Backend Strategy
 
-The backend will be built with .NET 8 and ASP.NET Core Web API.
+The backend will be built with .NET 10 and ASP.NET Core Web API.
 
 The API layer will expose HTTP endpoints for:
 
@@ -948,11 +948,11 @@ This section records initial architecture decisions.
 
 ---
 
-## ADR-002: Use .NET 8 and ASP.NET Core Web API
+## ADR-002: Use .NET 10 and ASP.NET Core Web API
 
 | Field | Value |
 |---|---|
-| Decision | Use .NET 8 with ASP.NET Core Web API for backend services. |
+| Decision | Use .NET 10 with ASP.NET Core Web API for backend services. |
 | Status | Accepted |
 | Rationale | Aligns with enterprise .NET roles and supports modern API development. |
 | Consequence | Backend implementation will be centered around controllers, middleware, dependency injection, and application services. |
@@ -1127,7 +1127,7 @@ docs/diagrams/database/
 
 # 13. Document Summary
 
-OpsSphere will be built as a maintainable enterprise application using Clean Architecture, .NET 8, ASP.NET Core Web API, Angular, SQL Server, Entity Framework Core, CQRS with MediatR, JWT authentication, role-based authorization, audit logging, Docker-ready local development, and Azure-ready deployment design.
+OpsSphere will be built as a maintainable enterprise application using Clean Architecture, .NET 10, ASP.NET Core Web API, Angular, SQL Server, Entity Framework Core, CQRS with MediatR, JWT authentication, role-based authorization, audit logging, Docker-ready local development, and Azure-ready deployment design.
 
 The architecture separates business logic from controllers, UI, persistence, and infrastructure.
 

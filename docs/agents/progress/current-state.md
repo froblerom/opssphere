@@ -62,7 +62,7 @@ An AI automation suite
 
 ```text
 Backend:
-  .NET 8
+  .NET 10
   ASP.NET Core Web API
   Clean Architecture
   CQRS with MediatR

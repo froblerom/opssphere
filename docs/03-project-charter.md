@@ -255,7 +255,7 @@ Advanced BI, telephony, workforce management, AI automation, and omnichannel int
 
 The platform will be built using the selected technical stack:
 
-- .NET 8.
+- .NET 10.
 - ASP.NET Core Web API.
 - Entity Framework Core.
 - SQL Server.

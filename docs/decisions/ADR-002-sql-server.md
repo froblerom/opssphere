@@ -81,7 +81,7 @@ SQL Server also fits the selected technology stack:
 
 ```text
 Backend:
-- .NET 8
+- .NET 10
 - ASP.NET Core Web API
 - Entity Framework Core
 
