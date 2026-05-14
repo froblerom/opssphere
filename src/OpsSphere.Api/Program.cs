@@ -2,8 +2,12 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
+using OpsSphere.Api.Authorization;
 using OpsSphere.Application;
+using OpsSphere.Application.Common.Interfaces;
+using OpsSphere.Domain.Authorization;
 using OpsSphere.Infrastructure;
 using OpsSphere.Infrastructure.Authentication;
 using OpsSphere.Infrastructure.Persistence.SeedData;
@@ -37,7 +41,18 @@ builder.Services
             RoleClaimType = ClaimTypes.Role
         };
     });
-builder.Services.AddAuthorization();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserContext, CurrentUserContext>();
+builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
+builder.Services.AddAuthorization(options =>
+{
+    // Register one named policy per permission code — policy name equals permission code
+    foreach (var permission in Permissions.All)
+    {
+        options.AddPolicy(permission, policy =>
+            policy.Requirements.Add(new PermissionRequirement(permission)));
+    }
+});
 
 var app = builder.Build();
 

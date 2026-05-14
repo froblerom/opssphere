@@ -1,15 +1,59 @@
+<!-- SECURITY NOTE: Navigation visibility below is UX only. Backend authorization is the source of truth. -->
 <mat-toolbar class="app-toolbar">
   <div class="brand">
     <mat-icon aria-hidden="true">hub</mat-icon>
     <span>{{ title }}</span>
   </div>
-  <span class="toolbar-spacer"></span>
+
   @if (authService.isAuthenticated()) {
+    <!-- Role-aware navigation — UX only, not a security boundary -->
+    <nav class="app-nav" aria-label="Main navigation">
+      @if (showDashboardNav()) {
+        <a mat-button routerLink="/dashboard">
+          <mat-icon aria-hidden="true">dashboard</mat-icon>
+          Dashboard
+        </a>
+      }
+      @if (showTicketsNav()) {
+        <a mat-button routerLink="/tickets">
+          <mat-icon aria-hidden="true">confirmation_number</mat-icon>
+          Tickets
+        </a>
+      }
+      @if (showReportsNav()) {
+        <a mat-button routerLink="/reports">
+          <mat-icon aria-hidden="true">bar_chart</mat-icon>
+          Reports
+        </a>
+      }
+      @if (showAuditNav()) {
+        <a mat-button routerLink="/audit">
+          <mat-icon aria-hidden="true">history</mat-icon>
+          Audit
+        </a>
+      }
+      @if (showAdminNav()) {
+        <a mat-button routerLink="/admin">
+          <mat-icon aria-hidden="true">admin_panel_settings</mat-icon>
+          Admin
+        </a>
+      }
+      @if (showUsersNav()) {
+        <a mat-button routerLink="/users">
+          <mat-icon aria-hidden="true">group</mat-icon>
+          Users
+        </a>
+      }
+    </nav>
+
+    <span class="toolbar-spacer"></span>
+    <span class="user-display">{{ authService.currentUser()?.displayName }}</span>
     <button mat-stroked-button type="button" (click)="logout()">
       <mat-icon aria-hidden="true">logout</mat-icon>
       <span>Logout</span>
     </button>
   } @else {
+    <span class="toolbar-spacer"></span>
     <a mat-stroked-button routerLink="/login">
       <mat-icon aria-hidden="true">login</mat-icon>
       <span>Login</span>

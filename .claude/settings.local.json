@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Get-ChildItem",
+      "Get-Content",
+      "Bash(dotnet build *)",
+      "Bash(xargs cat)"
+    ]
+  }
+}

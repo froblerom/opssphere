@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using OpsSphere.Application.Common.Interfaces;
 using OpsSphere.Domain.Entities;
 using OpsSphere.Infrastructure.Authentication;
+using OpsSphere.Infrastructure.Authorization;
 using OpsSphere.Infrastructure.Identity;
 using OpsSphere.Infrastructure.Persistence;
 using OpsSphere.Infrastructure.Persistence.SeedData;
@@ -39,6 +40,9 @@ public static class DependencyInjection
         services.AddScoped<IAuthUserReader, AuthUserReader>();
         services.AddScoped<IAuthUnitOfWork, AuthUnitOfWork>();
         services.AddScoped<OpsSphereDataSeeder>();
+
+        services.AddScoped<ICurrentUserAuthorizationService, CurrentUserAuthorizationService>();
+        services.AddScoped<IScopeAuthorizationService, ScopeAuthorizationService>();
 
         return services;
     }
