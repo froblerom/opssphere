@@ -1,7 +1,10 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using OpsSphere.Domain.Entities;
 using OpsSphere.Infrastructure.Persistence;
+using OpsSphere.Infrastructure.Persistence.SeedData;
 
 namespace OpsSphere.Infrastructure;
 
@@ -14,6 +17,11 @@ public static class DependencyInjection
 
         services.AddDbContext<OpsSphereDbContext>(options =>
             options.UseSqlServer(connectionString));
+
+        services.Configure<SeedDataOptions>(options =>
+            options.Enabled = bool.TryParse(configuration[$"{SeedDataOptions.SectionName}:Enabled"], out var enabled) && enabled);
+        services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
+        services.AddScoped<OpsSphereDataSeeder>();
 
         return services;
     }

@@ -21,6 +21,22 @@ internal sealed class UserScopeConfiguration : IEntityTypeConfiguration<UserScop
         builder.HasIndex(us => us.AccountId).HasDatabaseName("IX_UserScopes_AccountId");
         builder.HasIndex(us => us.CampaignId).HasDatabaseName("IX_UserScopes_CampaignId");
         builder.HasIndex(us => us.IsActive).HasDatabaseName("IX_UserScopes_IsActive");
+        builder.HasIndex(us => new { us.UserId, us.ScopeType, us.RegionId })
+            .IsUnique()
+            .HasFilter("[RegionId] IS NOT NULL")
+            .HasDatabaseName("UQ_UserScopes_User_Region");
+        builder.HasIndex(us => new { us.UserId, us.ScopeType, us.CountryId })
+            .IsUnique()
+            .HasFilter("[CountryId] IS NOT NULL")
+            .HasDatabaseName("UQ_UserScopes_User_Country");
+        builder.HasIndex(us => new { us.UserId, us.ScopeType, us.AccountId })
+            .IsUnique()
+            .HasFilter("[AccountId] IS NOT NULL")
+            .HasDatabaseName("UQ_UserScopes_User_Account");
+        builder.HasIndex(us => new { us.UserId, us.ScopeType, us.CampaignId })
+            .IsUnique()
+            .HasFilter("[CampaignId] IS NOT NULL")
+            .HasDatabaseName("UQ_UserScopes_User_Campaign");
 
         builder.HasOne(us => us.Region).WithMany(r => r.UserScopes).HasForeignKey(us => us.RegionId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(us => us.Country).WithMany(c => c.UserScopes).HasForeignKey(us => us.CountryId).OnDelete(DeleteBehavior.Restrict);
