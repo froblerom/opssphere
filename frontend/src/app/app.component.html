@@ -4,7 +4,17 @@
     <span>{{ title }}</span>
   </div>
   <span class="toolbar-spacer"></span>
-  <button mat-stroked-button type="button" disabled>Frontend Foundation</button>
+  @if (authService.isAuthenticated()) {
+    <button mat-stroked-button type="button" (click)="logout()">
+      <mat-icon aria-hidden="true">logout</mat-icon>
+      <span>Logout</span>
+    </button>
+  } @else {
+    <a mat-stroked-button routerLink="/login">
+      <mat-icon aria-hidden="true">login</mat-icon>
+      <span>Login</span>
+    </a>
+  }
 </mat-toolbar>
 
 <main class="app-shell">

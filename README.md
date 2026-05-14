@@ -149,6 +149,33 @@ dotnet run --project src/OpsSphere.Api
 ### Frontend API Base URL
 The Angular development environment is configured in `frontend/src/environments/environment.development.ts`. The `apiBaseUrl` property should point to your locally running backend API (e.g., `http://localhost:5000/api` or `https://localhost:7024/api` per `launchSettings.json`).
 
+## Local JWT Authentication
+
+The API uses JWT bearer authentication for internal users. Local development needs these configuration values:
+
+```json
+"Jwt": {
+  "Issuer": "OpsSphere",
+  "Audience": "OpsSphere.Angular",
+  "ExpirationMinutes": 60,
+  "SigningKey": "<local-development-only-signing-key>"
+}
+```
+
+`appsettings.json` intentionally keeps `Jwt:SigningKey` blank. Use .NET user secrets, environment variables, or a clearly local-only development value. Do not commit production signing keys or real secrets. `appsettings.Development.json` contains only a fictional local signing key for developer convenience.
+
+Seeded login users are fictional and share the local/demo password `OpsSphere123!`. Passwords are hashed before persistence, and passwords, password hashes, JWT tokens, Authorization headers, signing keys, and connection strings must not be logged.
+
+Useful auth smoke checks after the API starts:
+
+```bash
+dotnet run --project src/OpsSphere.Api
+```
+
+- `POST /api/auth/login` with `agent.novabank@opssphere.local` and `OpsSphere123!` should return a bearer token.
+- `GET /api/auth/me` should return 401 without a token and the current seeded profile with a valid token.
+- `GET /api/auth/protected-smoke` should return 401 without a token and 200 with a valid token.
+
 ## Documentation Approach
 
 OpsSphere follows a practical enterprise documentation workflow inspired by:

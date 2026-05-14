@@ -1,8 +1,22 @@
 import { HttpInterceptorFn } from '@angular/common/http';
+import { inject } from '@angular/core';
+
+import { environment } from '../../../environments/environment';
+import { TokenStorageService } from '../auth/token-storage.service';
 
 export const authInterceptor: HttpInterceptorFn = (request, next) => {
-  // Future work: attach JWT credentials when authentication is implemented.
-  // Do not treat frontend token handling or role checks as security enforcement;
-  // backend authorization remains the source of truth.
-  return next(request);
+  const token = inject(TokenStorageService).getUsableToken();
+  if (!token || !isApiRequest(request.url)) {
+    return next(request);
+  }
+
+  return next(request.clone({
+    setHeaders: {
+      Authorization: `Bearer ${token}`
+    }
+  }));
 };
+
+function isApiRequest(url: string): boolean {
+  return url.startsWith(environment.apiBaseUrl) || url.startsWith('/api/');
+}
