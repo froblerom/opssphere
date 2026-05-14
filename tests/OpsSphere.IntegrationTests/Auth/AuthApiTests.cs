@@ -118,7 +118,12 @@ public sealed class AuthApiTests
 
         Assert.Equal(HttpStatusCode.Unauthorized, inactiveResponse.StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, missingResponse.StatusCode);
-        Assert.Equal(inactiveBody, missingBody);
+
+        // Compare error code and message only — correlationId differs per-request by design
+        var inactiveError = JsonSerializer.Deserialize<ApiErrorResponse>(inactiveBody, JsonOptions)!;
+        var missingError = JsonSerializer.Deserialize<ApiErrorResponse>(missingBody, JsonOptions)!;
+        Assert.Equal(inactiveError.Error.Code, missingError.Error.Code);
+        Assert.Equal(inactiveError.Error.Message, missingError.Error.Message);
     }
 
     [Fact]
