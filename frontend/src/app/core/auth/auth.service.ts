@@ -5,6 +5,10 @@ import { ApiClientService } from '../services/api-client.service';
 import { ApiResponse, AuthUserSummary, CurrentUserProfile, LoginRequest, LoginResponse } from './auth.models';
 import { TokenStorageService } from './token-storage.service';
 
+// SECURITY NOTE: Frontend visibility is UX only. Backend authorization is the source of truth.
+// hasRole/hasPermission helpers improve UX by hiding unavailable actions.
+// They are NOT security controls — backend enforces authorization on every request.
+
 @Injectable({
   providedIn: 'root'
 })
@@ -14,6 +18,7 @@ export class AuthService {
   private readonly currentToken = signal(this.tokenStorage.getUsableToken());
 
   readonly currentUser = signal<AuthUserSummary | null>(null);
+  readonly currentProfile = signal<CurrentUserProfile | null>(null);
   readonly isAuthenticated = computed(() => Boolean(this.currentToken()));
 
   login(email: string, password: string) {
@@ -33,6 +38,7 @@ export class AuthService {
     return this.apiClient.get<ApiResponse<CurrentUserProfile>>('auth/me').pipe(
       map((response) => response.data),
       tap((profile) => {
+        this.currentProfile.set(profile);
         this.currentUser.set({
           id: profile.id,
           email: profile.email,
@@ -47,6 +53,7 @@ export class AuthService {
     this.tokenStorage.clearToken();
     this.currentToken.set(null);
     this.currentUser.set(null);
+    this.currentProfile.set(null);
   }
 
   getAccessToken(): string | null {
@@ -57,5 +64,22 @@ export class AuthService {
     }
 
     return token;
+  }
+
+  // UX helper — NOT a security control. Backend enforces roles on every request.
+  hasRole(role: string): boolean {
+    return this.currentUser()?.roles.includes(role) ?? false;
+  }
+
+  // UX helper — NOT a security control. Backend enforces permissions on every request.
+  hasPermission(permission: string): boolean {
+    return this.currentProfile()?.permissions.includes(permission) ?? false;
+  }
+
+  // UX helper — NOT a security control. Backend enforces permissions on every request.
+  hasAnyPermission(permissions: string[]): boolean {
+    const userPermissions = this.currentProfile()?.permissions;
+    if (!userPermissions) return false;
+    return permissions.some((p) => userPermissions.includes(p));
   }
 }

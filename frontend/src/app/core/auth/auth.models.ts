@@ -1,3 +1,6 @@
+// SECURITY NOTE: Frontend visibility is UX only. Backend authorization is the source of truth.
+// Do not rely on hidden links or route guards as security boundaries.
+
 export interface ApiResponse<T> {
   data: T;
 }
