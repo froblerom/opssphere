@@ -1,3 +1,5 @@
+using OpsSphere.Domain.Enums;
+
 namespace OpsSphere.Domain.Entities;
 
 public sealed class Ticket
@@ -13,11 +15,11 @@ public sealed class Ticket
     public Guid? AssignedAgentUserId { get; set; }
     public Guid? SupervisorUserId { get; set; }
     public string Category { get; set; } = string.Empty;
-    public string Priority { get; set; } = string.Empty;
-    public string Status { get; set; } = string.Empty;
+    public TicketPriority Priority { get; set; }
+    public TicketStatus Status { get; set; }
     public string Subject { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
-    public string SlaState { get; set; } = string.Empty;
+    public SlaState SlaState { get; set; }
     public DateTime? SlaDueAt { get; set; }
     public DateTime? ResolvedAt { get; set; }
     public DateTime? ClosedAt { get; set; }
