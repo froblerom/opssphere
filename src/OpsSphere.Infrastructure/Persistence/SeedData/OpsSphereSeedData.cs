@@ -137,6 +137,14 @@ public static class OpsSphereSeedData
         new(SeedIds.Campaigns.AeroLinkTravel, "AEROLINK-TRAVEL", "Travel Support", "AEROLINK", "CR", "Fictional travel support campaign.")
     ];
 
+    public static readonly IReadOnlyList<CustomerSeed> Customers =
+    [
+        new(SeedIds.Customers.NovaBankCustomer1, "NOVABANK", "Carlos", "Mendez", "carlos.mendez@fictional.test", "+52-55-1234-5678", "NB-001"),
+        new(SeedIds.Customers.StreamlyCustomer1, "STREAMLY", "Emma", "Johnson", "emma.j@fictional.test", "+1-415-555-0101", "ST-001"),
+        new(SeedIds.Customers.ShoporaCustomer1, "SHOPORA", "Valentina", "Cruz", "v.cruz@fictional.test", "+57-601-555-0201", "SH-001"),
+        new(SeedIds.Customers.AeroLinkCustomer1, "AEROLINK", "Rafael", "Mora", "r.mora@fictional.test", "+506-2222-3333", "AL-001")
+    ];
+
     public static readonly IReadOnlyList<UserScopeSeed> UserScopes =
     [
         UserScopeSeed.ForRegion(SeedIds.UserScopes.ManagerLatam, "manager.latam@opssphere.local", "LATAM"),
@@ -145,6 +153,7 @@ public static class OpsSphereSeedData
         UserScopeSeed.ForRegion(SeedIds.UserScopes.ViewerLatam, "viewer.latam@opssphere.local", "LATAM")
     ];
 
+    public sealed record CustomerSeed(Guid Id, string AccountCode, string FirstName, string LastName, string? Email, string? PhoneNumber, string? ExternalReference);
     public sealed record RoleSeed(Guid Id, string Name, string Description);
     public sealed record PermissionSeed(Guid Id, string Code, string Name, string Description);
     public sealed record UserSeed(Guid Id, string Email, string FirstName, string LastName, string DisplayName, string RoleName);

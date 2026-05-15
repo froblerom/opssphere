@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using OpsSphere.Application.Features.Auth.GetCurrentUser;
 using OpsSphere.Application.Features.Auth.Login;
+using OpsSphere.Application.Features.CustomerManagement;
 using OpsSphere.Application.Features.OrganizationManagement;
 using OpsSphere.Application.Features.UserManagement;
 
@@ -42,6 +43,12 @@ public static class DependencyInjection
         services.AddScoped<DeactivateCampaignCommandHandler>();
         services.AddScoped<GetUserScopesQueryHandler>();
         services.AddScoped<UpdateUserScopesCommandHandler>();
+        services.AddScoped<GetCustomersQueryHandler>();
+        services.AddScoped<GetCustomerByIdQueryHandler>();
+        services.AddScoped<CreateCustomerCommandHandler>();
+        services.AddScoped<UpdateCustomerCommandHandler>();
+        services.AddScoped<DeactivateCustomerCommandHandler>();
+        services.AddScoped<GetCustomerTicketsQueryHandler>();
 
         return services;
     }

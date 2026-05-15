@@ -134,6 +134,38 @@ export const routes: Routes = [
     loadComponent: () => import('./features/users/role-permission-list.component').then((m) => m.RolePermissionListComponent)
   },
   {
+    path: 'customers',
+    canActivate: [permissionGuard],
+    data: {
+      permissions: [AppPermissions.CustomersView]
+    },
+    loadComponent: () => import('./features/customers/customer-list.component').then((m) => m.CustomerListComponent)
+  },
+  {
+    path: 'customers/create',
+    canActivate: [permissionGuard],
+    data: {
+      permissions: [AppPermissions.CustomersCreate]
+    },
+    loadComponent: () => import('./features/customers/customer-form.component').then((m) => m.CustomerFormComponent)
+  },
+  {
+    path: 'customers/:id',
+    canActivate: [permissionGuard],
+    data: {
+      permissions: [AppPermissions.CustomersView]
+    },
+    loadComponent: () => import('./features/customers/customer-detail.component').then((m) => m.CustomerDetailComponent)
+  },
+  {
+    path: 'customers/:id/edit',
+    canActivate: [permissionGuard],
+    data: {
+      permissions: [AppPermissions.CustomersUpdate]
+    },
+    loadComponent: () => import('./features/customers/customer-form.component').then((m) => m.CustomerFormComponent)
+  },
+  {
     path: 'users',
     redirectTo: 'admin/users'
   },

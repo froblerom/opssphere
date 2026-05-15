@@ -96,6 +96,14 @@ public static class SeedIds
         public static readonly Guid AeroLinkTravel = Guid.Parse("ed4e4d95-45f4-47d4-811a-68c595cfe921");
     }
 
+    public static class Customers
+    {
+        public static readonly Guid NovaBankCustomer1 = Guid.Parse("a1b2c3d4-e5f6-4711-8001-000000000001");
+        public static readonly Guid StreamlyCustomer1 = Guid.Parse("a1b2c3d4-e5f6-4711-8002-000000000002");
+        public static readonly Guid ShoporaCustomer1 = Guid.Parse("a1b2c3d4-e5f6-4711-8003-000000000003");
+        public static readonly Guid AeroLinkCustomer1 = Guid.Parse("a1b2c3d4-e5f6-4711-8004-000000000004");
+    }
+
     public static class UserScopes
     {
         public static readonly Guid ManagerLatam = Guid.Parse("c616e064-8180-4aef-aa8b-cae17d68ef1d");
