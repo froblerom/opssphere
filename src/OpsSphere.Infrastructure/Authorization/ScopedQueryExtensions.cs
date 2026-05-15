@@ -22,9 +22,42 @@ public static class ScopedQueryExtensions
         if (profile.HasRole(Roles.Admin)) return query;
 
         var regionIds = GetAuthorizedRegionIds(profile.Scopes);
-        if (regionIds.Count == 0) return query.Where(_ => false);
+        var countryIds = GetDirectCountryIds(profile.Scopes);
+        var accountIds = GetDirectAccountIds(profile.Scopes);
+        var campaignIds = GetDirectCampaignIds(profile.Scopes);
+        if (regionIds.Count == 0 && countryIds.Count == 0 && accountIds.Count == 0 && campaignIds.Count == 0)
+            return query.Where(_ => false);
 
-        return query.Where(r => regionIds.Contains(r.Id));
+        return query.Where(r =>
+            (regionIds.Count > 0 && regionIds.Contains(r.Id)) ||
+            (countryIds.Count > 0 && r.Countries.Any(c => countryIds.Contains(c.Id))) ||
+            (accountIds.Count > 0 && r.Countries.Any(c => c.Accounts.Any(a => accountIds.Contains(a.Id)))) ||
+            (campaignIds.Count > 0 && r.Countries.Any(c => c.Campaigns.Any(campaign => campaignIds.Contains(campaign.Id)))));
+    }
+
+    /// <summary>
+    /// Filters countries to only those accessible by the given profile.
+    /// Hierarchy: Region -> Country.
+    /// </summary>
+    public static IQueryable<Country> ApplyScopeFilter(
+        this IQueryable<Country> query,
+        CurrentUserAuthorizationProfile profile)
+    {
+        if (profile.HasRole(Roles.Admin)) return query;
+
+        var countryIds = GetDirectCountryIds(profile.Scopes);
+        var accountIds = GetDirectAccountIds(profile.Scopes);
+        var campaignIds = GetDirectCampaignIds(profile.Scopes);
+        var regionIds = GetAuthorizedRegionIds(profile.Scopes);
+
+        if (countryIds.Count == 0 && accountIds.Count == 0 && campaignIds.Count == 0 && regionIds.Count == 0)
+            return query.Where(_ => false);
+
+        return query.Where(c =>
+            (countryIds.Count > 0 && countryIds.Contains(c.Id)) ||
+            (accountIds.Count > 0 && c.Accounts.Any(a => accountIds.Contains(a.Id))) ||
+            (campaignIds.Count > 0 && c.Campaigns.Any(campaign => campaignIds.Contains(campaign.Id))) ||
+            (regionIds.Count > 0 && regionIds.Contains(c.RegionId)));
     }
 
     /// <summary>
@@ -38,14 +71,16 @@ public static class ScopedQueryExtensions
         if (profile.HasRole(Roles.Admin)) return query;
 
         var accountIds = GetDirectAccountIds(profile.Scopes);
+        var campaignIds = GetDirectCampaignIds(profile.Scopes);
         var countryIds = GetDirectCountryIds(profile.Scopes);
         var regionIds = GetAuthorizedRegionIds(profile.Scopes);
 
-        if (accountIds.Count == 0 && countryIds.Count == 0 && regionIds.Count == 0)
+        if (accountIds.Count == 0 && campaignIds.Count == 0 && countryIds.Count == 0 && regionIds.Count == 0)
             return query.Where(_ => false);
 
         return query.Where(a =>
             (accountIds.Count > 0 && accountIds.Contains(a.Id)) ||
+            (campaignIds.Count > 0 && a.Campaigns.Any(c => campaignIds.Contains(c.Id))) ||
             (countryIds.Count > 0 && countryIds.Contains(a.CountryId)) ||
             (regionIds.Count > 0 && regionIds.Contains(a.Country.RegionId)));
     }
