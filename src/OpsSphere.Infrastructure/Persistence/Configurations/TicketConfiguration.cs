@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OpsSphere.Domain.Entities;
+using OpsSphere.Domain.Enums;
 
 namespace OpsSphere.Infrastructure.Persistence.Configurations;
 
@@ -12,11 +13,11 @@ internal sealed class TicketConfiguration : IEntityTypeConfiguration<Ticket>
         builder.HasKey(t => t.Id);
         builder.Property(t => t.TicketNumber).IsRequired().HasMaxLength(50);
         builder.Property(t => t.Category).IsRequired().HasMaxLength(100);
-        builder.Property(t => t.Priority).IsRequired().HasMaxLength(50);
-        builder.Property(t => t.Status).IsRequired().HasMaxLength(50);
+        builder.Property(t => t.Priority).HasConversion<string>().IsRequired().HasMaxLength(50);
+        builder.Property(t => t.Status).HasConversion<string>().IsRequired().HasMaxLength(50);
         builder.Property(t => t.Subject).IsRequired().HasMaxLength(200);
         builder.Property(t => t.Description).IsRequired();
-        builder.Property(t => t.SlaState).IsRequired().HasMaxLength(50);
+        builder.Property(t => t.SlaState).HasConversion<string>().IsRequired().HasMaxLength(50);
         builder.Property(t => t.IsEscalated).IsRequired();
         builder.Property(t => t.IsDeleted).IsRequired();
         builder.Property(t => t.CreatedAt).IsRequired();
