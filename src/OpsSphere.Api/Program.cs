@@ -31,6 +31,16 @@ builder.Host.UseSerilog((context, services, configuration) =>
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddControllers();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAngularDev", policy =>
+    {
+        policy.WithOrigins("http://localhost:4200")
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials();
+    });
+});
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -112,6 +122,7 @@ app.UseSerilogRequestLogging(options =>
 });
 
 app.UseHttpsRedirection();
+app.UseCors("AllowAngularDev");
 app.UseAuthentication();
 app.UseMiddleware<ActiveUserMiddleware>();
 app.UseAuthorization();
