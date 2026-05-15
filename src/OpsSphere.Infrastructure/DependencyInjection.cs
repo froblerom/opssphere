@@ -3,12 +3,14 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using OpsSphere.Application.Common.Interfaces;
+using OpsSphere.Infrastructure.Auditing;
 using OpsSphere.Domain.Entities;
 using OpsSphere.Infrastructure.Authentication;
 using OpsSphere.Infrastructure.Authorization;
 using OpsSphere.Infrastructure.Identity;
 using OpsSphere.Infrastructure.Persistence;
 using OpsSphere.Infrastructure.Persistence.SeedData;
+using OpsSphere.Infrastructure.UserManagement;
 
 namespace OpsSphere.Infrastructure;
 
@@ -36,9 +38,12 @@ public static class DependencyInjection
 
         services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
         services.AddScoped<IJwtTokenService, JwtTokenService>();
+        services.AddScoped<IPasswordHashService, PasswordHashService>();
         services.AddScoped<IPasswordVerifier, PasswordVerifier>();
         services.AddScoped<IAuthUserReader, AuthUserReader>();
         services.AddScoped<IAuthUnitOfWork, AuthUnitOfWork>();
+        services.AddScoped<IUserManagementRepository, UserManagementRepository>();
+        services.AddScoped<IAuditWriter, AuditWriter>();
         services.AddScoped<OpsSphereDataSeeder>();
 
         services.AddScoped<ICurrentUserAuthorizationService, CurrentUserAuthorizationService>();

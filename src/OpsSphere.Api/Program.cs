@@ -113,6 +113,7 @@ app.UseSerilogRequestLogging(options =>
 
 app.UseHttpsRedirection();
 app.UseAuthentication();
+app.UseMiddleware<ActiveUserMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
 
