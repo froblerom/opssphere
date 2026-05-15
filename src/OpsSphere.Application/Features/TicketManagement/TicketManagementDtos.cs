@@ -12,6 +12,17 @@ public sealed record CustomerTicketContextSnapshot(
     Guid AccountId,
     bool IsActive);
 
+public sealed record AgentAssignmentScopeSnapshot(
+    string ScopeType,
+    Guid? AccountId,
+    Guid? CampaignId);
+
+public sealed record AgentAssignmentCandidateSnapshot(
+    Guid UserId,
+    bool IsActive,
+    bool HasAgentRole,
+    IReadOnlyList<AgentAssignmentScopeSnapshot> ActiveScopes);
+
 public sealed record TicketListItemDto(
     Guid Id,
     string TicketNumber,
@@ -22,7 +33,9 @@ public sealed record TicketListItemDto(
     string Status,
     string SlaState,
     bool IsEscalated,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    Guid? AssignedAgentUserId,
+    string? AssignedAgentName);
 
 public sealed record TicketDetailDto(
     Guid Id,
@@ -43,7 +56,9 @@ public sealed record TicketDetailDto(
     bool IsEscalated,
     Guid CreatedByUserId,
     DateTime CreatedAt,
-    DateTime? UpdatedAt);
+    DateTime? UpdatedAt,
+    Guid? AssignedAgentUserId,
+    string? AssignedAgentName);
 
 public sealed record CreateTicketResult(
     Guid Id,
@@ -52,3 +67,21 @@ public sealed record CreateTicketResult(
     string Priority,
     string SlaState,
     DateTime? SlaDueAt);
+
+public sealed record AssignTicketRequest(
+    Guid TargetAgentUserId,
+    string? ReassignmentReason);
+
+public sealed record AssignTicketResponse(
+    Guid TicketId,
+    string TicketNumber,
+    Guid AssignedAgentUserId,
+    Guid? PreviousAgentUserId,
+    string Status,
+    string Message);
+
+public sealed record EligibleAgentDto(
+    Guid UserId,
+    string DisplayName,
+    string? ScopeType,
+    string? ScopeReference);

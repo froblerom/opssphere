@@ -9,6 +9,8 @@ export interface TicketListItem {
   slaState: string;
   isEscalated: boolean;
   createdAt: string;
+  assignedAgentUserId?: string | null;
+  assignedAgentName?: string | null;
 }
 
 export interface TicketDetail extends TicketListItem {
@@ -40,4 +42,25 @@ export interface CreateTicketResponse {
   priority: string;
   slaState: string;
   slaDueAt?: string | null;
+}
+
+export interface EligibleAgentDto {
+  userId: string;
+  displayName: string;
+  scopeType?: string | null;
+  scopeReference?: string | null;
+}
+
+export interface AssignTicketRequest {
+  targetAgentUserId: string;
+  reassignmentReason?: string | null;
+}
+
+export interface AssignTicketResponse {
+  ticketId: string;
+  ticketNumber: string;
+  assignedAgentUserId: string;
+  previousAgentUserId?: string | null;
+  status: string;
+  message: string;
 }

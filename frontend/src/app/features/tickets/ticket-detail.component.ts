@@ -1,14 +1,19 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 
+import { AppPermissions } from '../../core/auth/auth-permissions';
+import { AuthService } from '../../core/auth/auth.service';
+import { SafeApiError } from '../../core/models/api-error.models';
+import { ApiErrorParserService } from '../../core/services/api-error-parser.service';
 import { TicketService } from './ticket.service';
-import { TicketDetail } from './ticket.models';
+import { EligibleAgentDto, TicketDetail } from './ticket.models';
 
 @Component({
   selector: 'app-ticket-detail',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterModule],
   template: `
     <div class="page-container">
       <div *ngIf="loading" class="loading">Loading...</div>
@@ -24,6 +29,8 @@ import { TicketDetail } from './ticket.models';
           <dd>{{ ticket.ticketNumber }}</dd>
           <dt>Status</dt>
           <dd>{{ ticket.status }}</dd>
+          <dt>Assigned Agent</dt>
+          <dd>{{ ticket.assignedAgentName || 'Unassigned' }}</dd>
           <dt>Priority</dt>
           <dd>{{ ticket.priority }}</dd>
           <dt>SLA State</dt>
@@ -41,12 +48,52 @@ import { TicketDetail } from './ticket.models';
           <dt>Description</dt>
           <dd>{{ ticket.description }}</dd>
           <dt>SLA Due</dt>
-          <dd>{{ ticket.slaDueAt ? (ticket.slaDueAt | date:'medium') : '—' }}</dd>
+          <dd>{{ ticket.slaDueAt ? (ticket.slaDueAt | date:'medium') : 'Not set' }}</dd>
           <dt>Created</dt>
           <dd>{{ ticket.createdAt | date:'medium' }}</dd>
           <dt>Updated</dt>
-          <dd>{{ ticket.updatedAt ? (ticket.updatedAt | date:'medium') : '—' }}</dd>
+          <dd>{{ ticket.updatedAt ? (ticket.updatedAt | date:'medium') : 'Not set' }}</dd>
         </dl>
+
+        <section *ngIf="canShowAssignment" class="assignment-section" aria-labelledby="assignment-title">
+          <h2 id="assignment-title">Assignment</h2>
+
+          <div *ngIf="assignmentLoadError" class="error">{{ assignmentLoadError }}</div>
+
+          <form [formGroup]="assignmentForm" (ngSubmit)="assignTicket()">
+            <div class="form-group">
+              <label for="targetAgentUserId">Agent</label>
+              <select id="targetAgentUserId" formControlName="targetAgentUserId">
+                <option value="">Select an agent</option>
+                <option *ngFor="let agent of eligibleAgents" [value]="agent.userId">
+                  {{ agent.displayName }}
+                </option>
+              </select>
+              <div *ngIf="assignmentFieldError('targetAgentUserId')" class="field-error">
+                {{ assignmentFieldError('targetAgentUserId') }}
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="reassignmentReason">Reason</label>
+              <textarea id="reassignmentReason" formControlName="reassignmentReason" rows="3" maxlength="500"></textarea>
+              <div *ngIf="assignmentFieldError('reassignmentReason')" class="field-error">
+                {{ assignmentFieldError('reassignmentReason') }}
+              </div>
+            </div>
+
+            <div *ngIf="assignmentError" class="error">{{ assignmentError }}</div>
+            <p *ngIf="!assignmentLoading && eligibleAgents.length === 0 && !assignmentLoadError">No eligible agents available.</p>
+
+            <button
+              type="submit"
+              class="btn btn-primary"
+              [disabled]="assignmentLoading || assignmentSubmitting || assignmentForm.invalid || eligibleAgents.length === 0"
+            >
+              {{ assignmentSubmitting ? 'Assigning...' : 'Assign Ticket' }}
+            </button>
+          </form>
+        </section>
       </ng-container>
 
       <a routerLink="/tickets">Back to list</a>
@@ -55,11 +102,33 @@ import { TicketDetail } from './ticket.models';
 })
 export class TicketDetailComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
+  private readonly fb = inject(FormBuilder);
   private readonly ticketService = inject(TicketService);
+  private readonly authService = inject(AuthService);
+  private readonly errorParser = inject(ApiErrorParserService);
 
   ticket: TicketDetail | null = null;
+  eligibleAgents: EligibleAgentDto[] = [];
   loading = true;
+  assignmentLoading = false;
+  assignmentSubmitting = false;
   error: string | null = null;
+  assignmentError: string | null = null;
+  assignmentLoadError: string | null = null;
+  assignmentFieldErrors: Record<string, string> = {};
+
+  assignmentForm = this.fb.group({
+    targetAgentUserId: ['', Validators.required],
+    reassignmentReason: ['', Validators.maxLength(500)]
+  });
+
+  get canShowAssignment() {
+    return this.canAssignTickets && this.ticket?.status !== 'Closed';
+  }
+
+  private get canAssignTickets() {
+    return this.authService.hasPermission(AppPermissions.TicketsAssign);
+  }
 
   ngOnInit() {
     const id = this.route.snapshot.paramMap.get('id')!;
@@ -67,10 +136,70 @@ export class TicketDetailComponent implements OnInit {
       next: (ticket) => {
         this.ticket = ticket;
         this.loading = false;
+        this.loadEligibleAgentsIfAllowed();
       },
       error: () => {
         this.error = 'Ticket not found.';
         this.loading = false;
+      }
+    });
+  }
+
+  assignmentFieldError(name: string): string | null {
+    return this.assignmentFieldErrors[name] ?? null;
+  }
+
+  assignTicket() {
+    if (!this.ticket || this.assignmentForm.invalid || this.assignmentSubmitting) return;
+
+    this.assignmentSubmitting = true;
+    this.assignmentError = null;
+    this.assignmentFieldErrors = {};
+
+    const value = this.assignmentForm.getRawValue();
+    const targetAgentUserId = value.targetAgentUserId!;
+    const reassignmentReason = value.reassignmentReason ?? null;
+
+    this.ticketService.assignTicket(this.ticket.id, targetAgentUserId, reassignmentReason).subscribe({
+      next: (response) => {
+        const assignedAgent = this.eligibleAgents.find((agent) => agent.userId === response.assignedAgentUserId);
+        this.ticket = {
+          ...this.ticket!,
+          assignedAgentUserId: response.assignedAgentUserId,
+          assignedAgentName: assignedAgent?.displayName ?? this.ticket!.assignedAgentName,
+          status: response.status
+        };
+        this.assignmentForm.reset({ targetAgentUserId: '', reassignmentReason: '' });
+        this.assignmentSubmitting = false;
+        this.loadEligibleAgentsIfAllowed();
+      },
+      error: (err) => {
+        const parsed: SafeApiError = this.errorParser.parse(err);
+        this.assignmentFieldErrors = Object.fromEntries(
+          parsed.details.filter((d) => d.field).map((d) => [d.field!, d.message])
+        );
+        this.assignmentError = parsed.details.length === 0 ? parsed.message : null;
+        this.assignmentSubmitting = false;
+      }
+    });
+  }
+
+  private loadEligibleAgentsIfAllowed() {
+    if (!this.ticket || !this.canShowAssignment) return;
+
+    this.assignmentLoading = true;
+    this.assignmentLoadError = null;
+
+    this.ticketService.getEligibleAgents(this.ticket.id).subscribe({
+      next: (agents) => {
+        this.eligibleAgents = agents;
+        this.assignmentLoading = false;
+      },
+      error: (err) => {
+        const parsed: SafeApiError = this.errorParser.parse(err);
+        this.assignmentLoadError = parsed.message;
+        this.eligibleAgents = [];
+        this.assignmentLoading = false;
       }
     });
   }
