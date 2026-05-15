@@ -86,6 +86,31 @@ public static class ScopedQueryExtensions
     }
 
     /// <summary>
+    /// Filters customers to only those accessible by the given profile.
+    /// Hierarchy: Region → Country → Account → Customer (Campaign-scoped users access via parent Account).
+    /// </summary>
+    public static IQueryable<Customer> ApplyScopeFilter(
+        this IQueryable<Customer> query,
+        CurrentUserAuthorizationProfile profile)
+    {
+        if (profile.HasRole(Roles.Admin)) return query;
+
+        var accountIds = GetDirectAccountIds(profile.Scopes);
+        var campaignIds = GetDirectCampaignIds(profile.Scopes);
+        var countryIds = GetDirectCountryIds(profile.Scopes);
+        var regionIds = GetAuthorizedRegionIds(profile.Scopes);
+
+        if (accountIds.Count == 0 && campaignIds.Count == 0 && countryIds.Count == 0 && regionIds.Count == 0)
+            return query.Where(_ => false);
+
+        return query.Where(c =>
+            (accountIds.Count > 0 && accountIds.Contains(c.AccountId)) ||
+            (campaignIds.Count > 0 && c.Account.Campaigns.Any(camp => campaignIds.Contains(camp.Id))) ||
+            (countryIds.Count > 0 && countryIds.Contains(c.Account.CountryId)) ||
+            (regionIds.Count > 0 && regionIds.Contains(c.Account.Country.RegionId)));
+    }
+
+    /// <summary>
     /// Filters campaigns to only those accessible by the given profile.
     /// Hierarchy: Region → Country → Account → Campaign.
     /// </summary>

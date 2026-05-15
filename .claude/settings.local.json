@@ -4,7 +4,12 @@
       "Get-ChildItem",
       "Get-Content",
       "Bash(dotnet build *)",
-      "Bash(xargs cat)"
+      "Bash(xargs cat)",
+      "Bash(cd c:/Dev/opssphere && dotnet test *)",
+      "Bash(dotnet test *)",
+      "Bash(dotnet test --no-build -c Debug --logger \\\\\"console;verbosity=normal\\\\\" *)",
+      "Bash(cd c:/Dev/opssphere/frontend && npm run build *)",
+      "Bash(npm run build *)"
     ]
   }
 }

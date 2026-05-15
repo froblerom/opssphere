@@ -21,6 +21,7 @@ public sealed class OpsSphereDataSeeder
         await SeedPermissionsAsync(cancellationToken);
         await SeedRolePermissionsAsync(cancellationToken);
         await SeedOrganizationAsync(cancellationToken);
+        await SeedCustomersAsync(cancellationToken);
         await SeedUsersAsync(cancellationToken);
         await SeedUserRolesAsync(cancellationToken);
         await SeedUserScopesAsync(cancellationToken);
@@ -243,6 +244,36 @@ public sealed class OpsSphereDataSeeder
             campaign.Name = campaignSeed.Name;
             campaign.Description = campaignSeed.Description;
             campaign.IsActive = true;
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task SeedCustomersAsync(CancellationToken cancellationToken)
+    {
+        var accounts = await LoadAccountsByCodeAsync(cancellationToken);
+        var existingCustomerIds = await dbContext.Customers
+            .Select(c => c.Id)
+            .ToHashSetAsync(cancellationToken);
+
+        foreach (var customerSeed in OpsSphereSeedData.Customers)
+        {
+            if (existingCustomerIds.Contains(customerSeed.Id)) continue;
+
+            var accountId = accounts[customerSeed.AccountCode].Id;
+            dbContext.Customers.Add(new OpsSphere.Domain.Entities.Customer
+            {
+                Id = customerSeed.Id,
+                AccountId = accountId,
+                FirstName = customerSeed.FirstName,
+                LastName = customerSeed.LastName,
+                Email = customerSeed.Email,
+                PhoneNumber = customerSeed.PhoneNumber,
+                ExternalReference = customerSeed.ExternalReference,
+                IsActive = true,
+                IsDeleted = false,
+                CreatedAt = DateTime.UtcNow
+            });
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
