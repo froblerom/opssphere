@@ -71,6 +71,13 @@ export class AuthService {
     return this.currentUser()?.roles.includes(role) ?? false;
   }
 
+  // UX helper — NOT a security control. Backend enforces roles on every request.
+  hasAnyRole(roles: string[]): boolean {
+    const userRoles = this.currentUser()?.roles;
+    if (!userRoles) return false;
+    return roles.some((role) => userRoles.includes(role));
+  }
+
   // UX helper — NOT a security control. Backend enforces permissions on every request.
   hasPermission(permission: string): boolean {
     return this.currentProfile()?.permissions.includes(permission) ?? false;
