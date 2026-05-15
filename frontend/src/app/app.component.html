@@ -44,6 +44,12 @@
           Users
         </a>
       }
+      @if (showOrganizationNav()) {
+        <a mat-button routerLink="/admin/organization">
+          <mat-icon aria-hidden="true">hub</mat-icon>
+          Organization
+        </a>
+      }
     </nav>
 
     <span class="toolbar-spacer"></span>

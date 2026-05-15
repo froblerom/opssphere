@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using OpsSphere.Application.Features.Auth.GetCurrentUser;
 using OpsSphere.Application.Features.Auth.Login;
+using OpsSphere.Application.Features.OrganizationManagement;
 using OpsSphere.Application.Features.UserManagement;
 
 namespace OpsSphere.Application;
@@ -19,6 +20,28 @@ public static class DependencyInjection
         services.AddScoped<UpdateUserRolesCommandHandler>();
         services.AddScoped<GetRolesQueryHandler>();
         services.AddScoped<GetPermissionsQueryHandler>();
+        services.AddScoped<GetRegionsQueryHandler>();
+        services.AddScoped<GetRegionByIdQueryHandler>();
+        services.AddScoped<CreateRegionCommandHandler>();
+        services.AddScoped<UpdateRegionCommandHandler>();
+        services.AddScoped<DeactivateRegionCommandHandler>();
+        services.AddScoped<GetCountriesQueryHandler>();
+        services.AddScoped<GetCountryByIdQueryHandler>();
+        services.AddScoped<CreateCountryCommandHandler>();
+        services.AddScoped<UpdateCountryCommandHandler>();
+        services.AddScoped<DeactivateCountryCommandHandler>();
+        services.AddScoped<GetAccountsQueryHandler>();
+        services.AddScoped<GetAccountByIdQueryHandler>();
+        services.AddScoped<CreateAccountCommandHandler>();
+        services.AddScoped<UpdateAccountCommandHandler>();
+        services.AddScoped<DeactivateAccountCommandHandler>();
+        services.AddScoped<GetCampaignsQueryHandler>();
+        services.AddScoped<GetCampaignByIdQueryHandler>();
+        services.AddScoped<CreateCampaignCommandHandler>();
+        services.AddScoped<UpdateCampaignCommandHandler>();
+        services.AddScoped<DeactivateCampaignCommandHandler>();
+        services.AddScoped<GetUserScopesQueryHandler>();
+        services.AddScoped<UpdateUserScopesCommandHandler>();
 
         return services;
     }

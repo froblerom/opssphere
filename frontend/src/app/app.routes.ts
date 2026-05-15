@@ -28,6 +28,58 @@ export const routes: Routes = [
     loadComponent: () => import('./features/users/admin-users.component').then((m) => m.AdminUsersComponent)
   },
   {
+    path: 'admin/organization',
+    canActivate: [permissionGuard],
+    data: {
+      permissions: [AppPermissions.OrganizationView, AppPermissions.OrganizationManage]
+    },
+    loadComponent: () => import('./features/organization/organization-admin.component').then((m) => m.OrganizationAdminComponent)
+  },
+  {
+    path: 'admin/organization/regions',
+    canActivate: [permissionGuard],
+    data: {
+      permissions: [AppPermissions.OrganizationView],
+      kind: 'regions'
+    },
+    loadComponent: () => import('./features/organization/organization-entity-manager.component').then((m) => m.OrganizationEntityManagerComponent)
+  },
+  {
+    path: 'admin/organization/countries',
+    canActivate: [permissionGuard],
+    data: {
+      permissions: [AppPermissions.OrganizationView],
+      kind: 'countries'
+    },
+    loadComponent: () => import('./features/organization/organization-entity-manager.component').then((m) => m.OrganizationEntityManagerComponent)
+  },
+  {
+    path: 'admin/organization/accounts',
+    canActivate: [permissionGuard],
+    data: {
+      permissions: [AppPermissions.OrganizationView],
+      kind: 'accounts'
+    },
+    loadComponent: () => import('./features/organization/organization-entity-manager.component').then((m) => m.OrganizationEntityManagerComponent)
+  },
+  {
+    path: 'admin/organization/campaigns',
+    canActivate: [permissionGuard],
+    data: {
+      permissions: [AppPermissions.OrganizationView],
+      kind: 'campaigns'
+    },
+    loadComponent: () => import('./features/organization/organization-entity-manager.component').then((m) => m.OrganizationEntityManagerComponent)
+  },
+  {
+    path: 'admin/organization/assignments',
+    canActivate: [permissionGuard],
+    data: {
+      permissions: [AppPermissions.AssignmentsManage, AppPermissions.ScopesManage]
+    },
+    loadComponent: () => import('./features/organization/organization-assignments.component').then((m) => m.OrganizationAssignmentsComponent)
+  },
+  {
     path: 'admin/users',
     canActivate: [permissionGuard],
     data: {

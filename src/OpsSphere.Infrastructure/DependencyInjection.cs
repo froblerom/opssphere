@@ -8,6 +8,7 @@ using OpsSphere.Domain.Entities;
 using OpsSphere.Infrastructure.Authentication;
 using OpsSphere.Infrastructure.Authorization;
 using OpsSphere.Infrastructure.Identity;
+using OpsSphere.Infrastructure.OrganizationManagement;
 using OpsSphere.Infrastructure.Persistence;
 using OpsSphere.Infrastructure.Persistence.SeedData;
 using OpsSphere.Infrastructure.UserManagement;
@@ -43,6 +44,7 @@ public static class DependencyInjection
         services.AddScoped<IAuthUserReader, AuthUserReader>();
         services.AddScoped<IAuthUnitOfWork, AuthUnitOfWork>();
         services.AddScoped<IUserManagementRepository, UserManagementRepository>();
+        services.AddScoped<IOrganizationManagementRepository, OrganizationManagementRepository>();
         services.AddScoped<IAuditWriter, AuditWriter>();
         services.AddScoped<OpsSphereDataSeeder>();
 

@@ -47,6 +47,10 @@ export class AppComponent {
     this.authService.hasAnyPermission([AppPermissions.UsersView, AppPermissions.UsersManage])
   );
 
+  protected readonly showOrganizationNav = computed(() =>
+    this.authService.hasAnyPermission([AppPermissions.OrganizationView, AppPermissions.OrganizationManage])
+  );
+
   protected logout(): void {
     this.authService.logout();
     void this.router.navigate(['/login']);
