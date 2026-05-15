@@ -135,6 +135,32 @@ public static class ScopedQueryExtensions
             (regionIds.Count > 0 && regionIds.Contains(c.Country.RegionId)));
     }
 
+    /// <summary>
+    /// Filters tickets to only those accessible by the given profile.
+    /// Hierarchy: Region → Country → Account → Campaign → Ticket.
+    /// Ticket stores RegionId, CountryId, AccountId, and CampaignId directly for efficient filtering.
+    /// </summary>
+    public static IQueryable<Ticket> ApplyScopeFilter(
+        this IQueryable<Ticket> query,
+        CurrentUserAuthorizationProfile profile)
+    {
+        if (profile.HasRole(Roles.Admin)) return query;
+
+        var campaignIds = GetDirectCampaignIds(profile.Scopes);
+        var accountIds = GetDirectAccountIds(profile.Scopes);
+        var countryIds = GetDirectCountryIds(profile.Scopes);
+        var regionIds = GetAuthorizedRegionIds(profile.Scopes);
+
+        if (campaignIds.Count == 0 && accountIds.Count == 0 && countryIds.Count == 0 && regionIds.Count == 0)
+            return query.Where(_ => false);
+
+        return query.Where(t =>
+            (campaignIds.Count > 0 && campaignIds.Contains(t.CampaignId)) ||
+            (accountIds.Count > 0 && accountIds.Contains(t.AccountId)) ||
+            (countryIds.Count > 0 && countryIds.Contains(t.CountryId)) ||
+            (regionIds.Count > 0 && regionIds.Contains(t.RegionId)));
+    }
+
     private static IReadOnlyList<Guid> GetAuthorizedRegionIds(IReadOnlyList<UserScopeDto> scopes) =>
         scopes.Where(s => s.ScopeType == ScopeTypes.Region && s.RegionId.HasValue)
               .Select(s => s.RegionId!.Value)

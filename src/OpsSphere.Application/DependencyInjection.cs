@@ -3,6 +3,7 @@ using OpsSphere.Application.Features.Auth.GetCurrentUser;
 using OpsSphere.Application.Features.Auth.Login;
 using OpsSphere.Application.Features.CustomerManagement;
 using OpsSphere.Application.Features.OrganizationManagement;
+using OpsSphere.Application.Features.TicketManagement;
 using OpsSphere.Application.Features.UserManagement;
 
 namespace OpsSphere.Application;
@@ -49,6 +50,9 @@ public static class DependencyInjection
         services.AddScoped<UpdateCustomerCommandHandler>();
         services.AddScoped<DeactivateCustomerCommandHandler>();
         services.AddScoped<GetCustomerTicketsQueryHandler>();
+        services.AddScoped<CreateTicketCommandHandler>();
+        services.AddScoped<GetTicketsQueryHandler>();
+        services.AddScoped<GetTicketByIdQueryHandler>();
 
         return services;
     }

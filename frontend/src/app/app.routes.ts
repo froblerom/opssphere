@@ -166,6 +166,30 @@ export const routes: Routes = [
     loadComponent: () => import('./features/customers/customer-form.component').then((m) => m.CustomerFormComponent)
   },
   {
+    path: 'tickets',
+    canActivate: [permissionGuard],
+    data: {
+      permissions: [AppPermissions.TicketsView]
+    },
+    loadComponent: () => import('./features/tickets/ticket-list.component').then((m) => m.TicketListComponent)
+  },
+  {
+    path: 'tickets/create',
+    canActivate: [permissionGuard],
+    data: {
+      permissions: [AppPermissions.TicketsCreate]
+    },
+    loadComponent: () => import('./features/tickets/ticket-create.component').then((m) => m.TicketCreateComponent)
+  },
+  {
+    path: 'tickets/:id',
+    canActivate: [permissionGuard],
+    data: {
+      permissions: [AppPermissions.TicketsView]
+    },
+    loadComponent: () => import('./features/tickets/ticket-detail.component').then((m) => m.TicketDetailComponent)
+  },
+  {
     path: 'users',
     redirectTo: 'admin/users'
   },
