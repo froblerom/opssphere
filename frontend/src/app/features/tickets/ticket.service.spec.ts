@@ -3,7 +3,7 @@ import { of } from 'rxjs';
 
 import { ApiClientService } from '../../core/services/api-client.service';
 import { TicketService } from './ticket.service';
-import { CreateTicketRequest, TicketListItem } from './ticket.models';
+import { CreateTicketRequest, EligibleAgentDto, TicketListItem } from './ticket.models';
 
 describe('TicketService', () => {
   let service: TicketService;
@@ -100,6 +100,45 @@ describe('TicketService', () => {
     service.createTicket(request).subscribe((result) => {
       expect(result).toEqual(response);
       expect(apiClient.post).toHaveBeenCalledOnceWith('tickets', request);
+      done();
+    });
+  });
+
+  it('getEligibleAgents calls correct URL and unwraps data', (done) => {
+    const agents: EligibleAgentDto[] = [
+      {
+        userId: 'agent-1',
+        displayName: 'Nova Agent',
+        scopeType: 'Campaign',
+        scopeReference: 'NOVABANK-CC'
+      }
+    ];
+    apiClient.get.and.returnValue(of({ data: agents }));
+
+    service.getEligibleAgents('ticket-1').subscribe((result) => {
+      expect(result).toEqual(agents);
+      expect(apiClient.get).toHaveBeenCalledOnceWith('tickets/ticket-1/eligible-agents');
+      done();
+    });
+  });
+
+  it('assignTicket calls correct URL with request and unwraps response', (done) => {
+    const response = {
+      ticketId: 'ticket-1',
+      ticketNumber: 'TKT-0001',
+      assignedAgentUserId: 'agent-1',
+      previousAgentUserId: null,
+      status: 'Assigned',
+      message: 'Ticket assigned successfully.'
+    };
+    apiClient.post.and.returnValue(of({ data: response }));
+
+    service.assignTicket('ticket-1', 'agent-1', '  Escalated workload  ').subscribe((result) => {
+      expect(result).toEqual(response);
+      expect(apiClient.post).toHaveBeenCalledOnceWith('tickets/ticket-1/assign', {
+        targetAgentUserId: 'agent-1',
+        reassignmentReason: 'Escalated workload'
+      });
       done();
     });
   });

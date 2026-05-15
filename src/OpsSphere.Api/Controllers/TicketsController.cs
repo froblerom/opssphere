@@ -15,17 +15,23 @@ public sealed class TicketsController : ControllerBase
     private readonly CreateTicketCommandHandler createTicket;
     private readonly GetTicketsQueryHandler getTickets;
     private readonly GetTicketByIdQueryHandler getTicket;
+    private readonly AssignTicketCommandHandler assignTicket;
+    private readonly GetEligibleAgentsQueryHandler getEligibleAgents;
 
     public TicketsController(
         ILogger<TicketsController> logger,
         CreateTicketCommandHandler createTicket,
         GetTicketsQueryHandler getTickets,
-        GetTicketByIdQueryHandler getTicket)
+        GetTicketByIdQueryHandler getTicket,
+        AssignTicketCommandHandler assignTicket,
+        GetEligibleAgentsQueryHandler getEligibleAgents)
     {
         this.logger = logger;
         this.createTicket = createTicket;
         this.getTickets = getTickets;
         this.getTicket = getTicket;
+        this.assignTicket = assignTicket;
+        this.getEligibleAgents = getEligibleAgents;
     }
 
     [HttpPost("tickets")]
@@ -56,6 +62,25 @@ public sealed class TicketsController : ControllerBase
     [Authorize(Policy = Permissions.TicketsView)]
     public async Task<IActionResult> GetTicket(Guid id, CancellationToken cancellationToken) =>
         Ok(new ApiResponse<TicketDetailDto>(await getTicket.HandleAsync(new GetTicketByIdQuery(id), cancellationToken)));
+
+    [HttpPost("tickets/{id:guid}/assign")]
+    [Authorize(Policy = Permissions.TicketsAssign)]
+    public async Task<IActionResult> AssignTicket(Guid id, AssignTicketRequest request, CancellationToken cancellationToken)
+    {
+        var result = await assignTicket.HandleAsync(
+            new AssignTicketCommand(id, request.TargetAgentUserId, request.ReassignmentReason),
+            cancellationToken);
+        logger.LogInformation(
+            "Ticket assigned. TicketId={TicketId} TicketNumber={TicketNumber} AssignedAgentUserId={AssignedAgentUserId} Status={Status}",
+            result.TicketId, result.TicketNumber, result.AssignedAgentUserId, result.Status);
+        return Ok(new ApiResponse<AssignTicketResponse>(result));
+    }
+
+    [HttpGet("tickets/{id:guid}/eligible-agents")]
+    [Authorize(Policy = Permissions.TicketsAssign)]
+    public async Task<IActionResult> GetEligibleAgents(Guid id, CancellationToken cancellationToken) =>
+        Ok(new ApiResponse<IReadOnlyList<EligibleAgentDto>>(
+            await getEligibleAgents.HandleAsync(new GetEligibleAgentsQuery(id), cancellationToken)));
 
     public sealed record CreateTicketRequest(
         Guid CustomerId,

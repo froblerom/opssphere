@@ -12,3 +12,10 @@ public sealed record CreateTicketCommand(
 public sealed record GetTicketByIdQuery(Guid Id);
 
 public sealed record GetTicketsQuery;
+
+public sealed record AssignTicketCommand(
+    Guid TicketId,
+    Guid TargetAgentUserId,
+    string? ReassignmentReason);
+
+public sealed record GetEligibleAgentsQuery(Guid TicketId);

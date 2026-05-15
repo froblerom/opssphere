@@ -1,8 +1,11 @@
 using System.Text.Json;
 using OpsSphere.Application.Common.Exceptions;
 using OpsSphere.Application.Common.Interfaces;
+using OpsSphere.Domain.Authorization;
 using OpsSphere.Domain.Entities;
 using OpsSphere.Domain.Enums;
+using OpsSphere.Domain.Exceptions;
+using OpsSphere.Domain.Services;
 
 namespace OpsSphere.Application.Features.TicketManagement;
 
@@ -122,6 +125,160 @@ public sealed class GetTicketByIdQueryHandler(ITicketRepository repository)
 {
     public async Task<TicketDetailDto> HandleAsync(GetTicketByIdQuery query, CancellationToken cancellationToken) =>
         await repository.GetTicketByIdAsync(query.Id, cancellationToken) ?? throw new NotFoundException("Ticket", query.Id);
+}
+
+public sealed class AssignTicketCommandHandler(
+    ITicketRepository repository,
+    ICurrentUserContext currentUser,
+    IAuditWriter auditWriter)
+{
+    private const int AssignmentReasonMaxLength = 500;
+
+    public async Task<AssignTicketResponse> HandleAsync(AssignTicketCommand command, CancellationToken cancellationToken)
+    {
+        var reassignmentReason = Validate(command);
+
+        var ticket = await repository.GetTicketForAssignmentAsync(command.TicketId, cancellationToken)
+            ?? throw new NotFoundException("Ticket", command.TicketId);
+
+        EnsureTicketCanBeAssigned(ticket.Status);
+
+        if (ticket.AssignedAgentUserId == command.TargetAgentUserId)
+            throw new BusinessRuleException("Ticket is already assigned to the selected agent.");
+
+        var candidate = await repository.GetAgentAssignmentCandidateAsync(command.TargetAgentUserId, cancellationToken)
+            ?? throw new NotFoundException("User", command.TargetAgentUserId);
+
+        ValidateCandidate(candidate, ticket);
+
+        var actorUserId = currentUser.UserId ?? throw new ValidationException("userId", "Authenticated user context is required.");
+        var previousStatus = ticket.Status;
+        var previousAgentUserId = ticket.AssignedAgentUserId;
+        var now = DateTime.UtcNow;
+
+        ticket.AssignedAgentUserId = command.TargetAgentUserId;
+        ticket.UpdatedAt = now;
+
+        if (ticket.Status == TicketStatus.Open)
+        {
+            ticket.Status = TicketStatus.Assigned;
+            await repository.AddStatusHistoryAsync(new TicketStatusHistory
+            {
+                Id = Guid.NewGuid(),
+                TicketId = ticket.Id,
+                PreviousStatus = TicketStatus.Open.ToString(),
+                NewStatus = TicketStatus.Assigned.ToString(),
+                ChangedByUserId = actorUserId,
+                ChangeReason = "Ticket assigned",
+                CreatedAt = now
+            }, cancellationToken);
+        }
+
+        await repository.AddAssignmentAsync(new TicketAssignment
+        {
+            Id = Guid.NewGuid(),
+            TicketId = ticket.Id,
+            PreviousAgentUserId = previousAgentUserId,
+            NewAgentUserId = command.TargetAgentUserId,
+            AssignedByUserId = actorUserId,
+            AssignmentReason = reassignmentReason,
+            CreatedAt = now
+        }, cancellationToken);
+
+        await auditWriter.WriteAsync(
+            "TicketAssigned",
+            "Ticket",
+            ticket.Id,
+            TicketAuditJson.Serialize(new
+            {
+                assignedAgentUserId = previousAgentUserId,
+                status = previousStatus.ToString()
+            }),
+            TicketAuditJson.Serialize(new
+            {
+                assignedAgentUserId = command.TargetAgentUserId,
+                status = ticket.Status.ToString()
+            }),
+            cancellationToken);
+
+        await repository.SaveChangesAsync(cancellationToken);
+
+        return new AssignTicketResponse(
+            ticket.Id,
+            ticket.TicketNumber,
+            command.TargetAgentUserId,
+            previousAgentUserId,
+            ticket.Status.ToString(),
+            "Ticket assigned successfully.");
+    }
+
+    private static string? Validate(AssignTicketCommand command)
+    {
+        var failures = new List<ValidationFailure>();
+        if (command.TicketId == Guid.Empty) failures.Add(new ValidationFailure("ticketId", "Ticket is required."));
+        if (command.TargetAgentUserId == Guid.Empty) failures.Add(new ValidationFailure("targetAgentUserId", "Target agent is required."));
+
+        var reassignmentReason = string.IsNullOrWhiteSpace(command.ReassignmentReason)
+            ? null
+            : command.ReassignmentReason.Trim();
+        if (reassignmentReason?.Length > AssignmentReasonMaxLength)
+            failures.Add(new ValidationFailure("reassignmentReason", $"Reassignment reason must be {AssignmentReasonMaxLength} characters or fewer."));
+
+        if (failures.Count > 0) throw new ValidationException(failures);
+        return reassignmentReason;
+    }
+
+    private static void EnsureTicketCanBeAssigned(TicketStatus status)
+    {
+        try
+        {
+            TicketWorkflowRules.EnsureCanAssign(status);
+        }
+        catch (TicketDomainException ex)
+        {
+            throw new BusinessRuleException(ex.Message);
+        }
+    }
+
+    private static void ValidateCandidate(AgentAssignmentCandidateSnapshot candidate, Ticket ticket)
+    {
+        if (!candidate.IsActive)
+            throw new ValidationException("targetAgentUserId", "Target agent must be active.");
+
+        if (!candidate.HasAgentRole)
+            throw new ValidationException("targetAgentUserId", "Target user is not eligible for ticket assignment.");
+
+        if (!IsEligibleForTicket(candidate, ticket))
+            throw new ValidationException("targetAgentUserId", "Target agent is outside the ticket scope.");
+    }
+
+    private static bool IsEligibleForTicket(AgentAssignmentCandidateSnapshot candidate, Ticket ticket) =>
+        candidate.ActiveScopes.Any(scope =>
+            (scope.ScopeType == ScopeTypes.Account && scope.AccountId == ticket.AccountId) ||
+            (scope.ScopeType == ScopeTypes.Campaign && scope.CampaignId == ticket.CampaignId));
+}
+
+public sealed class GetEligibleAgentsQueryHandler(ITicketRepository repository)
+{
+    public async Task<IReadOnlyList<EligibleAgentDto>> HandleAsync(GetEligibleAgentsQuery query, CancellationToken cancellationToken)
+    {
+        if (query.TicketId == Guid.Empty)
+            throw new ValidationException("ticketId", "Ticket is required.");
+
+        var ticket = await repository.GetTicketForAssignmentAsync(query.TicketId, cancellationToken)
+            ?? throw new NotFoundException("Ticket", query.TicketId);
+
+        try
+        {
+            TicketWorkflowRules.EnsureCanAssign(ticket.Status);
+        }
+        catch (TicketDomainException ex)
+        {
+            throw new BusinessRuleException(ex.Message);
+        }
+
+        return await repository.GetEligibleAgentsAsync(ticket.CampaignId, ticket.AccountId, cancellationToken);
+    }
 }
 
 internal static class TicketValidation

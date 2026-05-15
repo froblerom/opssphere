@@ -53,6 +53,8 @@ public static class DependencyInjection
         services.AddScoped<CreateTicketCommandHandler>();
         services.AddScoped<GetTicketsQueryHandler>();
         services.AddScoped<GetTicketByIdQueryHandler>();
+        services.AddScoped<AssignTicketCommandHandler>();
+        services.AddScoped<GetEligibleAgentsQueryHandler>();
 
         return services;
     }
