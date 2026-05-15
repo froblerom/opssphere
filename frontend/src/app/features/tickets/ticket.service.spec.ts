@@ -7,10 +7,10 @@ import { CreateTicketRequest, EligibleAgentDto, TicketListItem } from './ticket.
 
 describe('TicketService', () => {
   let service: TicketService;
-  let apiClient: jasmine.SpyObj<Pick<ApiClientService, 'get' | 'post'>>;
+  let apiClient: jasmine.SpyObj<Pick<ApiClientService, 'get' | 'post' | 'put'>>;
 
   beforeEach(() => {
-    apiClient = jasmine.createSpyObj<Pick<ApiClientService, 'get' | 'post'>>('ApiClientService', ['get', 'post']);
+    apiClient = jasmine.createSpyObj<Pick<ApiClientService, 'get' | 'post' | 'put'>>('ApiClientService', ['get', 'post', 'put']);
 
     TestBed.configureTestingModule({
       providers: [
@@ -138,6 +138,46 @@ describe('TicketService', () => {
       expect(apiClient.post).toHaveBeenCalledOnceWith('tickets/ticket-1/assign', {
         targetAgentUserId: 'agent-1',
         reassignmentReason: 'Escalated workload'
+      });
+      done();
+    });
+  });
+
+  it('updateTicketStatus calls correct URL with request and unwraps response', (done) => {
+    const response = {
+      ticketId: 'ticket-1',
+      ticketNumber: 'TKT-0001',
+      previousStatus: 'Assigned',
+      newStatus: 'InProgress',
+      message: 'Ticket status updated successfully.'
+    };
+    apiClient.put.and.returnValue(of({ data: response }));
+
+    service.updateTicketStatus('ticket-1', 'InProgress', '  Working now  ').subscribe((result) => {
+      expect(result).toEqual(response);
+      expect(apiClient.put).toHaveBeenCalledOnceWith('tickets/ticket-1/status', {
+        status: 'InProgress',
+        changeReason: 'Working now'
+      });
+      done();
+    });
+  });
+
+  it('updateTicketPriority calls correct URL with request and unwraps response', (done) => {
+    const response = {
+      ticketId: 'ticket-1',
+      ticketNumber: 'TKT-0001',
+      previousPriority: 'Normal',
+      newPriority: 'High',
+      message: 'Ticket priority updated successfully.'
+    };
+    apiClient.put.and.returnValue(of({ data: response }));
+
+    service.updateTicketPriority('ticket-1', 'High', '  Customer impact  ').subscribe((result) => {
+      expect(result).toEqual(response);
+      expect(apiClient.put).toHaveBeenCalledOnceWith('tickets/ticket-1/priority', {
+        priority: 'High',
+        changeReason: 'Customer impact'
       });
       done();
     });

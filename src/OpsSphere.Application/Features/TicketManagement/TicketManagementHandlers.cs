@@ -281,6 +281,208 @@ public sealed class GetEligibleAgentsQueryHandler(ITicketRepository repository)
     }
 }
 
+public sealed class UpdateTicketStatusCommandHandler(
+    ITicketRepository repository,
+    ICurrentUserContext currentUser,
+    IAuditWriter auditWriter)
+{
+    private const int ChangeReasonMaxLength = 500;
+    private static readonly HashSet<TicketStatus> AllowedDestinationStatuses =
+    [
+        TicketStatus.Assigned,
+        TicketStatus.InProgress,
+        TicketStatus.WaitingForCustomer
+    ];
+
+    public async Task<UpdateTicketStatusResponse> HandleAsync(UpdateTicketStatusCommand command, CancellationToken cancellationToken)
+    {
+        var (requestedStatus, changeReason) = Validate(command);
+
+        var ticket = await repository.GetTicketForAssignmentAsync(command.TicketId, cancellationToken)
+            ?? throw new NotFoundException("Ticket", command.TicketId);
+
+        EnsureTicketCanBeModified(ticket.Status);
+
+        if (ticket.Status == requestedStatus)
+            throw new BusinessRuleException("Ticket is already in this status.");
+
+        if (!AllowedDestinationStatuses.Contains(requestedStatus))
+            throw new BusinessRuleException(
+                $"Cannot update ticket status to {requestedStatus}. Only Assigned, InProgress, and WaitingForCustomer are allowed in this workflow.");
+
+        if (requestedStatus == TicketStatus.Assigned && ticket.AssignedAgentUserId is null)
+            throw new BusinessRuleException("Cannot set status to Assigned when no agent is assigned.");
+
+        EnsureValidTicketTransition(ticket.Status, requestedStatus);
+
+        var actorUserId = currentUser.UserId ?? throw new ValidationException("userId", "Authenticated user context is required.");
+        var previousStatus = ticket.Status;
+        var now = DateTime.UtcNow;
+
+        ticket.Status = requestedStatus;
+        ticket.UpdatedAt = now;
+
+        await repository.AddStatusHistoryAsync(new TicketStatusHistory
+        {
+            Id = Guid.NewGuid(),
+            TicketId = ticket.Id,
+            PreviousStatus = previousStatus.ToString(),
+            NewStatus = requestedStatus.ToString(),
+            ChangedByUserId = actorUserId,
+            ChangeReason = changeReason ?? "Status updated",
+            CreatedAt = now
+        }, cancellationToken);
+
+        await auditWriter.WriteAsync(
+            "TicketStatusChanged",
+            "Ticket",
+            ticket.Id,
+            TicketAuditJson.Serialize(new
+            {
+                status = previousStatus.ToString()
+            }),
+            TicketAuditJson.Serialize(new
+            {
+                status = requestedStatus.ToString()
+            }),
+            cancellationToken);
+
+        await repository.SaveChangesAsync(cancellationToken);
+
+        return new UpdateTicketStatusResponse(
+            ticket.Id,
+            ticket.TicketNumber,
+            previousStatus.ToString(),
+            requestedStatus.ToString(),
+            "Ticket status updated successfully.");
+    }
+
+    private static (TicketStatus Status, string? ChangeReason) Validate(UpdateTicketStatusCommand command)
+    {
+        var failures = new List<ValidationFailure>();
+        if (command.TicketId == Guid.Empty) failures.Add(new ValidationFailure("ticketId", "Ticket is required."));
+
+        TicketStatus parsedStatus = default;
+        if (string.IsNullOrWhiteSpace(command.Status))
+            failures.Add(new ValidationFailure("status", "Status is required."));
+        else if (!Enum.TryParse(command.Status.Trim(), ignoreCase: true, out parsedStatus))
+            failures.Add(new ValidationFailure("status", $"Status must be one of: {string.Join(", ", Enum.GetNames<TicketStatus>())}."));
+
+        var changeReason = string.IsNullOrWhiteSpace(command.ChangeReason)
+            ? null
+            : command.ChangeReason.Trim();
+        if (changeReason?.Length > ChangeReasonMaxLength)
+            failures.Add(new ValidationFailure("changeReason", $"Change reason must be {ChangeReasonMaxLength} characters or fewer."));
+
+        if (failures.Count > 0) throw new ValidationException(failures);
+        return (parsedStatus, changeReason);
+    }
+
+    private static void EnsureTicketCanBeModified(TicketStatus status)
+    {
+        try
+        {
+            TicketWorkflowRules.EnsureCanModify(status);
+        }
+        catch (TicketDomainException ex)
+        {
+            throw new BusinessRuleException(ex.Message);
+        }
+    }
+
+    private static void EnsureValidTicketTransition(TicketStatus from, TicketStatus to)
+    {
+        try
+        {
+            TicketWorkflowRules.EnsureValidTransition(from, to);
+        }
+        catch (TicketDomainException ex)
+        {
+            throw new BusinessRuleException(ex.Message);
+        }
+    }
+}
+
+public sealed class UpdateTicketPriorityCommandHandler(
+    ITicketRepository repository,
+    IAuditWriter auditWriter)
+{
+    private const int ChangeReasonMaxLength = 500;
+
+    public async Task<UpdateTicketPriorityResponse> HandleAsync(UpdateTicketPriorityCommand command, CancellationToken cancellationToken)
+    {
+        var (requestedPriority, _) = Validate(command);
+
+        var ticket = await repository.GetTicketForAssignmentAsync(command.TicketId, cancellationToken)
+            ?? throw new NotFoundException("Ticket", command.TicketId);
+
+        EnsureTicketCanBeModified(ticket.Status);
+
+        if (ticket.Priority == requestedPriority)
+            throw new BusinessRuleException("Ticket already has this priority.");
+
+        var previousPriority = ticket.Priority;
+        ticket.Priority = requestedPriority;
+        ticket.UpdatedAt = DateTime.UtcNow;
+
+        await auditWriter.WriteAsync(
+            "TicketPriorityChanged",
+            "Ticket",
+            ticket.Id,
+            TicketAuditJson.Serialize(new
+            {
+                priority = previousPriority.ToString()
+            }),
+            TicketAuditJson.Serialize(new
+            {
+                priority = requestedPriority.ToString()
+            }),
+            cancellationToken);
+
+        await repository.SaveChangesAsync(cancellationToken);
+
+        return new UpdateTicketPriorityResponse(
+            ticket.Id,
+            ticket.TicketNumber,
+            previousPriority.ToString(),
+            requestedPriority.ToString(),
+            "Ticket priority updated successfully.");
+    }
+
+    private static (TicketPriority Priority, string? ChangeReason) Validate(UpdateTicketPriorityCommand command)
+    {
+        var failures = new List<ValidationFailure>();
+        if (command.TicketId == Guid.Empty) failures.Add(new ValidationFailure("ticketId", "Ticket is required."));
+
+        TicketPriority parsedPriority = default;
+        if (string.IsNullOrWhiteSpace(command.Priority))
+            failures.Add(new ValidationFailure("priority", "Priority is required."));
+        else if (!Enum.TryParse(command.Priority.Trim(), ignoreCase: true, out parsedPriority))
+            failures.Add(new ValidationFailure("priority", $"Priority must be one of: {string.Join(", ", Enum.GetNames<TicketPriority>())}."));
+
+        var changeReason = string.IsNullOrWhiteSpace(command.ChangeReason)
+            ? null
+            : command.ChangeReason.Trim();
+        if (changeReason?.Length > ChangeReasonMaxLength)
+            failures.Add(new ValidationFailure("changeReason", $"Change reason must be {ChangeReasonMaxLength} characters or fewer."));
+
+        if (failures.Count > 0) throw new ValidationException(failures);
+        return (parsedPriority, changeReason);
+    }
+
+    private static void EnsureTicketCanBeModified(TicketStatus status)
+    {
+        try
+        {
+            TicketWorkflowRules.EnsureCanModify(status);
+        }
+        catch (TicketDomainException ex)
+        {
+            throw new BusinessRuleException(ex.Message);
+        }
+    }
+}
+
 internal static class TicketValidation
 {
     public static (string Category, string Subject, string Description, TicketPriority Priority) Validate(

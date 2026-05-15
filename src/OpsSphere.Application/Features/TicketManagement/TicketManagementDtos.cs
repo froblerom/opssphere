@@ -85,3 +85,25 @@ public sealed record EligibleAgentDto(
     string DisplayName,
     string? ScopeType,
     string? ScopeReference);
+
+public sealed record UpdateTicketStatusRequest(
+    string? Status,
+    string? ChangeReason);
+
+public sealed record UpdateTicketStatusResponse(
+    Guid TicketId,
+    string TicketNumber,
+    string PreviousStatus,
+    string NewStatus,
+    string Message);
+
+public sealed record UpdateTicketPriorityRequest(
+    string? Priority,
+    string? ChangeReason);
+
+public sealed record UpdateTicketPriorityResponse(
+    Guid TicketId,
+    string TicketNumber,
+    string PreviousPriority,
+    string NewPriority,
+    string Message);

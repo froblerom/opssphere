@@ -64,3 +64,29 @@ export interface AssignTicketResponse {
   status: string;
   message: string;
 }
+
+export interface UpdateTicketStatusRequest {
+  status: string;
+  changeReason?: string | null;
+}
+
+export interface UpdateTicketStatusResponse {
+  ticketId: string;
+  ticketNumber: string;
+  previousStatus: string;
+  newStatus: string;
+  message: string;
+}
+
+export interface UpdateTicketPriorityRequest {
+  priority: string;
+  changeReason?: string | null;
+}
+
+export interface UpdateTicketPriorityResponse {
+  ticketId: string;
+  ticketNumber: string;
+  previousPriority: string;
+  newPriority: string;
+  message: string;
+}

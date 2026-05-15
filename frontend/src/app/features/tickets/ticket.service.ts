@@ -10,7 +10,11 @@ import {
   CreateTicketResponse,
   EligibleAgentDto,
   TicketDetail,
-  TicketListItem
+  TicketListItem,
+  UpdateTicketPriorityRequest,
+  UpdateTicketPriorityResponse,
+  UpdateTicketStatusRequest,
+  UpdateTicketStatusResponse
 } from './ticket.models';
 
 @Injectable({
@@ -43,6 +47,28 @@ export class TicketService {
 
     return this.apiClient
       .post<AssignTicketRequest, ApiResponse<AssignTicketResponse>>(`tickets/${ticketId}/assign`, request)
+      .pipe(map((r) => r.data));
+  }
+
+  updateTicketStatus(ticketId: string, status: string, changeReason?: string | null) {
+    const request: UpdateTicketStatusRequest = {
+      status,
+      changeReason: changeReason?.trim() || null
+    };
+
+    return this.apiClient
+      .put<UpdateTicketStatusRequest, ApiResponse<UpdateTicketStatusResponse>>(`tickets/${ticketId}/status`, request)
+      .pipe(map((r) => r.data));
+  }
+
+  updateTicketPriority(ticketId: string, priority: string, changeReason?: string | null) {
+    const request: UpdateTicketPriorityRequest = {
+      priority,
+      changeReason: changeReason?.trim() || null
+    };
+
+    return this.apiClient
+      .put<UpdateTicketPriorityRequest, ApiResponse<UpdateTicketPriorityResponse>>(`tickets/${ticketId}/priority`, request)
       .pipe(map((r) => r.data));
   }
 }
