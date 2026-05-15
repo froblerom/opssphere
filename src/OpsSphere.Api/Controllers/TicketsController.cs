@@ -17,6 +17,8 @@ public sealed class TicketsController : ControllerBase
     private readonly GetTicketByIdQueryHandler getTicket;
     private readonly AssignTicketCommandHandler assignTicket;
     private readonly GetEligibleAgentsQueryHandler getEligibleAgents;
+    private readonly UpdateTicketStatusCommandHandler updateTicketStatus;
+    private readonly UpdateTicketPriorityCommandHandler updateTicketPriority;
 
     public TicketsController(
         ILogger<TicketsController> logger,
@@ -24,7 +26,9 @@ public sealed class TicketsController : ControllerBase
         GetTicketsQueryHandler getTickets,
         GetTicketByIdQueryHandler getTicket,
         AssignTicketCommandHandler assignTicket,
-        GetEligibleAgentsQueryHandler getEligibleAgents)
+        GetEligibleAgentsQueryHandler getEligibleAgents,
+        UpdateTicketStatusCommandHandler updateTicketStatus,
+        UpdateTicketPriorityCommandHandler updateTicketPriority)
     {
         this.logger = logger;
         this.createTicket = createTicket;
@@ -32,6 +36,8 @@ public sealed class TicketsController : ControllerBase
         this.getTicket = getTicket;
         this.assignTicket = assignTicket;
         this.getEligibleAgents = getEligibleAgents;
+        this.updateTicketStatus = updateTicketStatus;
+        this.updateTicketPriority = updateTicketPriority;
     }
 
     [HttpPost("tickets")]
@@ -81,6 +87,32 @@ public sealed class TicketsController : ControllerBase
     public async Task<IActionResult> GetEligibleAgents(Guid id, CancellationToken cancellationToken) =>
         Ok(new ApiResponse<IReadOnlyList<EligibleAgentDto>>(
             await getEligibleAgents.HandleAsync(new GetEligibleAgentsQuery(id), cancellationToken)));
+
+    [HttpPut("tickets/{id:guid}/status")]
+    [Authorize(Policy = Permissions.TicketsUpdateStatus)]
+    public async Task<IActionResult> UpdateTicketStatus(Guid id, UpdateTicketStatusRequest request, CancellationToken cancellationToken)
+    {
+        var result = await updateTicketStatus.HandleAsync(
+            new UpdateTicketStatusCommand(id, request.Status, request.ChangeReason),
+            cancellationToken);
+        logger.LogInformation(
+            "Ticket status updated. TicketId={TicketId} TicketNumber={TicketNumber} PreviousStatus={PreviousStatus} NewStatus={NewStatus}",
+            result.TicketId, result.TicketNumber, result.PreviousStatus, result.NewStatus);
+        return Ok(new ApiResponse<UpdateTicketStatusResponse>(result));
+    }
+
+    [HttpPut("tickets/{id:guid}/priority")]
+    [Authorize(Policy = Permissions.TicketsUpdatePriority)]
+    public async Task<IActionResult> UpdateTicketPriority(Guid id, UpdateTicketPriorityRequest request, CancellationToken cancellationToken)
+    {
+        var result = await updateTicketPriority.HandleAsync(
+            new UpdateTicketPriorityCommand(id, request.Priority, request.ChangeReason),
+            cancellationToken);
+        logger.LogInformation(
+            "Ticket priority updated. TicketId={TicketId} TicketNumber={TicketNumber} PreviousPriority={PreviousPriority} NewPriority={NewPriority}",
+            result.TicketId, result.TicketNumber, result.PreviousPriority, result.NewPriority);
+        return Ok(new ApiResponse<UpdateTicketPriorityResponse>(result));
+    }
 
     public sealed record CreateTicketRequest(
         Guid CustomerId,

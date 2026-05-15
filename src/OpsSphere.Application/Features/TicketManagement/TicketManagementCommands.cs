@@ -19,3 +19,13 @@ public sealed record AssignTicketCommand(
     string? ReassignmentReason);
 
 public sealed record GetEligibleAgentsQuery(Guid TicketId);
+
+public sealed record UpdateTicketStatusCommand(
+    Guid TicketId,
+    string? Status,
+    string? ChangeReason);
+
+public sealed record UpdateTicketPriorityCommand(
+    Guid TicketId,
+    string? Priority,
+    string? ChangeReason);

@@ -3,21 +3,22 @@ import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/route
 import { of, throwError } from 'rxjs';
 
 import { AuthService } from '../../core/auth/auth.service';
+import { AppPermissions } from '../../core/auth/auth-permissions';
 import { ApiErrorParserService } from '../../core/services/api-error-parser.service';
 import { TicketDetailComponent } from './ticket-detail.component';
 import { TicketDetail } from './ticket.models';
 import { TicketService } from './ticket.service';
 
 describe('TicketDetailComponent', () => {
-  let ticketService: jasmine.SpyObj<Pick<TicketService, 'getTicket' | 'getEligibleAgents' | 'assignTicket'>>;
+  let ticketService: jasmine.SpyObj<Pick<TicketService, 'getTicket' | 'getEligibleAgents' | 'assignTicket' | 'updateTicketStatus' | 'updateTicketPriority'>>;
   let authService: jasmine.SpyObj<Pick<AuthService, 'hasPermission'>>;
   let errorParser: jasmine.SpyObj<Pick<ApiErrorParserService, 'parse'>>;
   let fixture: ComponentFixture<TicketDetailComponent>;
 
   beforeEach(() => {
-    ticketService = jasmine.createSpyObj<Pick<TicketService, 'getTicket' | 'getEligibleAgents' | 'assignTicket'>>(
+    ticketService = jasmine.createSpyObj<Pick<TicketService, 'getTicket' | 'getEligibleAgents' | 'assignTicket' | 'updateTicketStatus' | 'updateTicketPriority'>>(
       'TicketService',
-      ['getTicket', 'getEligibleAgents', 'assignTicket']
+      ['getTicket', 'getEligibleAgents', 'assignTicket', 'updateTicketStatus', 'updateTicketPriority']
     );
     authService = jasmine.createSpyObj<Pick<AuthService, 'hasPermission'>>('AuthService', ['hasPermission']);
     errorParser = jasmine.createSpyObj<Pick<ApiErrorParserService, 'parse'>>('ApiErrorParserService', ['parse']);
@@ -126,6 +127,165 @@ describe('TicketDetailComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Agent is inactive.');
+  });
+
+  it('shows status controls with TicketsUpdateStatus permission and non-Closed ticket', () => {
+    authService.hasPermission.and.callFake((permission) => permission === AppPermissions.TicketsUpdateStatus);
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Assigned', assignedAgentUserId: 'agent-1' })));
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Status Update');
+    expect(text).toContain('Current status: Assigned');
+    expect(text).toContain('InProgress');
+    expect(text).not.toContain('Escalated');
+    expect(text).not.toContain('Resolved');
+    expect(text).not.toContain('Closed');
+  });
+
+  it('hides status controls when ticket is Closed', () => {
+    authService.hasPermission.and.callFake((permission) => permission === AppPermissions.TicketsUpdateStatus);
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Closed' })));
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Status Update');
+  });
+
+  it('hides status controls without TicketsUpdateStatus permission', () => {
+    authService.hasPermission.and.returnValue(false);
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Assigned' })));
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Status Update');
+  });
+
+  it('shows priority controls with TicketsUpdatePriority permission and non-Closed ticket', () => {
+    authService.hasPermission.and.callFake((permission) => permission === AppPermissions.TicketsUpdatePriority);
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Assigned', priority: 'Normal' })));
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Priority Update');
+    expect(text).toContain('Current priority: Normal');
+    expect(text).toContain('Low');
+    expect(text).toContain('Critical');
+  });
+
+  it('hides priority controls when ticket is Closed', () => {
+    authService.hasPermission.and.callFake((permission) => permission === AppPermissions.TicketsUpdatePriority);
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Closed' })));
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Priority Update');
+  });
+
+  it('hides priority controls without TicketsUpdatePriority permission', () => {
+    authService.hasPermission.and.returnValue(false);
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Assigned' })));
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Priority Update');
+  });
+
+  it('calls update status service on submit and updates local status', () => {
+    authService.hasPermission.and.callFake((permission) => permission === AppPermissions.TicketsUpdateStatus);
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Assigned', assignedAgentUserId: 'agent-1' })));
+    ticketService.updateTicketStatus.and.returnValue(of({
+      ticketId: 'ticket-1',
+      ticketNumber: 'TKT-0001',
+      previousStatus: 'Assigned',
+      newStatus: 'InProgress',
+      message: 'Ticket status updated successfully.'
+    }));
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance;
+    component.statusForm.setValue({
+      status: 'InProgress',
+      changeReason: 'Working now'
+    });
+    component.updateStatus();
+
+    expect(ticketService.updateTicketStatus).toHaveBeenCalledOnceWith('ticket-1', 'InProgress', 'Working now');
+    expect(component.ticket?.status).toBe('InProgress');
+  });
+
+  it('prevents setting Assigned when no agent is assigned', () => {
+    authService.hasPermission.and.callFake((permission) => permission === AppPermissions.TicketsUpdateStatus);
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Open', assignedAgentUserId: null })));
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance;
+    component.statusForm.setValue({
+      status: 'Assigned',
+      changeReason: ''
+    });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Assign an agent before setting this ticket to Assigned.');
+    component.updateStatus();
+    expect(ticketService.updateTicketStatus).not.toHaveBeenCalled();
+  });
+
+  it('calls update priority service on submit and updates local priority', () => {
+    authService.hasPermission.and.callFake((permission) => permission === AppPermissions.TicketsUpdatePriority);
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Assigned', priority: 'Normal' })));
+    ticketService.updateTicketPriority.and.returnValue(of({
+      ticketId: 'ticket-1',
+      ticketNumber: 'TKT-0001',
+      previousPriority: 'Normal',
+      newPriority: 'High',
+      message: 'Ticket priority updated successfully.'
+    }));
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance;
+    component.priorityForm.setValue({
+      priority: 'High',
+      changeReason: 'Customer impact'
+    });
+    component.updatePriority();
+
+    expect(ticketService.updateTicketPriority).toHaveBeenCalledOnceWith('ticket-1', 'High', 'Customer impact');
+    expect(component.ticket?.priority).toBe('High');
+  });
+
+  it('displays parsed status business rule errors inline', () => {
+    authService.hasPermission.and.callFake((permission) => permission === AppPermissions.TicketsUpdateStatus);
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Assigned', assignedAgentUserId: 'agent-1' })));
+    ticketService.updateTicketStatus.and.returnValue(throwError(() => new Error('boom')));
+    errorParser.parse.and.returnValue({ code: 'business_rule_violation', message: 'Invalid ticket transition.', details: [] });
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance;
+    component.statusForm.setValue({
+      status: 'WaitingForCustomer',
+      changeReason: ''
+    });
+    component.updateStatus();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Invalid ticket transition.');
   });
 });
 

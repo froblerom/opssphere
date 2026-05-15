@@ -55,6 +55,85 @@ import { EligibleAgentDto, TicketDetail } from './ticket.models';
           <dd>{{ ticket.updatedAt ? (ticket.updatedAt | date:'medium') : 'Not set' }}</dd>
         </dl>
 
+        <section *ngIf="canShowStatusUpdate" class="status-section" aria-labelledby="status-update-title">
+          <h2 id="status-update-title">Status Update</h2>
+          <p>Current status: {{ ticket.status }}</p>
+
+          <form [formGroup]="statusForm" (ngSubmit)="updateStatus()">
+            <div class="form-group">
+              <label for="status">Status</label>
+              <select id="status" formControlName="status">
+                <option value="">Select a status</option>
+                <option *ngFor="let status of statusOptions" [value]="status">
+                  {{ status }}
+                </option>
+              </select>
+              <div *ngIf="statusFieldError('status')" class="field-error">
+                {{ statusFieldError('status') }}
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="statusChangeReason">Reason</label>
+              <textarea id="statusChangeReason" formControlName="changeReason" rows="3" maxlength="500"></textarea>
+              <div *ngIf="statusFieldError('changeReason')" class="field-error">
+                {{ statusFieldError('changeReason') }}
+              </div>
+            </div>
+
+            <div *ngIf="statusRequiresAssignedAgent" class="field-error">
+              Assign an agent before setting this ticket to Assigned.
+            </div>
+            <div *ngIf="statusError" class="error">{{ statusError }}</div>
+
+            <button
+              type="submit"
+              class="btn btn-primary"
+              [disabled]="statusSubmitting || statusForm.invalid || statusRequiresAssignedAgent"
+            >
+              {{ statusSubmitting ? 'Updating...' : 'Update Status' }}
+            </button>
+          </form>
+        </section>
+
+        <section *ngIf="canShowPriorityUpdate" class="priority-section" aria-labelledby="priority-update-title">
+          <h2 id="priority-update-title">Priority Update</h2>
+          <p>Current priority: {{ ticket.priority }}</p>
+
+          <form [formGroup]="priorityForm" (ngSubmit)="updatePriority()">
+            <div class="form-group">
+              <label for="priority">Priority</label>
+              <select id="priority" formControlName="priority">
+                <option value="">Select a priority</option>
+                <option *ngFor="let priority of priorityOptions" [value]="priority">
+                  {{ priority }}
+                </option>
+              </select>
+              <div *ngIf="priorityFieldError('priority')" class="field-error">
+                {{ priorityFieldError('priority') }}
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="priorityChangeReason">Reason</label>
+              <textarea id="priorityChangeReason" formControlName="changeReason" rows="3" maxlength="500"></textarea>
+              <div *ngIf="priorityFieldError('changeReason')" class="field-error">
+                {{ priorityFieldError('changeReason') }}
+              </div>
+            </div>
+
+            <div *ngIf="priorityError" class="error">{{ priorityError }}</div>
+
+            <button
+              type="submit"
+              class="btn btn-primary"
+              [disabled]="prioritySubmitting || priorityForm.invalid"
+            >
+              {{ prioritySubmitting ? 'Updating...' : 'Update Priority' }}
+            </button>
+          </form>
+        </section>
+
         <section *ngIf="canShowAssignment" class="assignment-section" aria-labelledby="assignment-title">
           <h2 id="assignment-title">Assignment</h2>
 
@@ -107,27 +186,66 @@ export class TicketDetailComponent implements OnInit {
   private readonly authService = inject(AuthService);
   private readonly errorParser = inject(ApiErrorParserService);
 
+  readonly statusOptions = ['Assigned', 'InProgress', 'WaitingForCustomer'];
+  readonly priorityOptions = ['Low', 'Normal', 'High', 'Critical'];
+
   ticket: TicketDetail | null = null;
   eligibleAgents: EligibleAgentDto[] = [];
   loading = true;
   assignmentLoading = false;
   assignmentSubmitting = false;
+  statusSubmitting = false;
+  prioritySubmitting = false;
   error: string | null = null;
   assignmentError: string | null = null;
   assignmentLoadError: string | null = null;
+  statusError: string | null = null;
+  priorityError: string | null = null;
   assignmentFieldErrors: Record<string, string> = {};
+  statusFieldErrors: Record<string, string> = {};
+  priorityFieldErrors: Record<string, string> = {};
 
   assignmentForm = this.fb.group({
     targetAgentUserId: ['', Validators.required],
     reassignmentReason: ['', Validators.maxLength(500)]
   });
 
+  statusForm = this.fb.group({
+    status: ['', Validators.required],
+    changeReason: ['', Validators.maxLength(500)]
+  });
+
+  priorityForm = this.fb.group({
+    priority: ['', Validators.required],
+    changeReason: ['', Validators.maxLength(500)]
+  });
+
   get canShowAssignment() {
     return this.canAssignTickets && this.ticket?.status !== 'Closed';
   }
 
+  get canShowStatusUpdate() {
+    return this.canUpdateTicketStatus && this.ticket?.status !== 'Closed';
+  }
+
+  get canShowPriorityUpdate() {
+    return this.canUpdateTicketPriority && this.ticket?.status !== 'Closed';
+  }
+
+  get statusRequiresAssignedAgent() {
+    return this.statusForm.controls.status.value === 'Assigned' && !this.ticket?.assignedAgentUserId;
+  }
+
   private get canAssignTickets() {
     return this.authService.hasPermission(AppPermissions.TicketsAssign);
+  }
+
+  private get canUpdateTicketStatus() {
+    return this.authService.hasPermission(AppPermissions.TicketsUpdateStatus);
+  }
+
+  private get canUpdateTicketPriority() {
+    return this.authService.hasPermission(AppPermissions.TicketsUpdatePriority);
   }
 
   ngOnInit() {
@@ -147,6 +265,14 @@ export class TicketDetailComponent implements OnInit {
 
   assignmentFieldError(name: string): string | null {
     return this.assignmentFieldErrors[name] ?? null;
+  }
+
+  statusFieldError(name: string): string | null {
+    return this.statusFieldErrors[name] ?? null;
+  }
+
+  priorityFieldError(name: string): string | null {
+    return this.priorityFieldErrors[name] ?? null;
   }
 
   assignTicket() {
@@ -180,6 +306,68 @@ export class TicketDetailComponent implements OnInit {
         );
         this.assignmentError = parsed.details.length === 0 ? parsed.message : null;
         this.assignmentSubmitting = false;
+      }
+    });
+  }
+
+  updateStatus() {
+    if (!this.ticket || this.statusForm.invalid || this.statusSubmitting || this.statusRequiresAssignedAgent) return;
+
+    this.statusSubmitting = true;
+    this.statusError = null;
+    this.statusFieldErrors = {};
+
+    const value = this.statusForm.getRawValue();
+    const status = value.status!;
+    const changeReason = value.changeReason ?? null;
+
+    this.ticketService.updateTicketStatus(this.ticket.id, status, changeReason).subscribe({
+      next: (response) => {
+        this.ticket = {
+          ...this.ticket!,
+          status: response.newStatus
+        };
+        this.statusForm.reset({ status: '', changeReason: '' });
+        this.statusSubmitting = false;
+      },
+      error: (err) => {
+        const parsed: SafeApiError = this.errorParser.parse(err);
+        this.statusFieldErrors = Object.fromEntries(
+          parsed.details.filter((d) => d.field).map((d) => [d.field!, d.message])
+        );
+        this.statusError = parsed.details.length === 0 ? parsed.message : null;
+        this.statusSubmitting = false;
+      }
+    });
+  }
+
+  updatePriority() {
+    if (!this.ticket || this.priorityForm.invalid || this.prioritySubmitting) return;
+
+    this.prioritySubmitting = true;
+    this.priorityError = null;
+    this.priorityFieldErrors = {};
+
+    const value = this.priorityForm.getRawValue();
+    const priority = value.priority!;
+    const changeReason = value.changeReason ?? null;
+
+    this.ticketService.updateTicketPriority(this.ticket.id, priority, changeReason).subscribe({
+      next: (response) => {
+        this.ticket = {
+          ...this.ticket!,
+          priority: response.newPriority
+        };
+        this.priorityForm.reset({ priority: '', changeReason: '' });
+        this.prioritySubmitting = false;
+      },
+      error: (err) => {
+        const parsed: SafeApiError = this.errorParser.parse(err);
+        this.priorityFieldErrors = Object.fromEntries(
+          parsed.details.filter((d) => d.field).map((d) => [d.field!, d.message])
+        );
+        this.priorityError = parsed.details.length === 0 ? parsed.message : null;
+        this.prioritySubmitting = false;
       }
     });
   }
