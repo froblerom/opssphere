@@ -1,3 +1,4 @@
+using OpsSphere.Application.Features.CustomerManagement;
 using OpsSphere.Application.Features.TicketManagement;
 using OpsSphere.Domain.Entities;
 
@@ -9,6 +10,7 @@ public interface ITicketRepository
     Task<CustomerTicketContextSnapshot?> GetCustomerSnapshotAsync(Guid customerId, CancellationToken cancellationToken);
     Task AddTicketAsync(Ticket ticket, TicketStatusHistory statusHistory, TicketSlaState slaState, CancellationToken cancellationToken);
     Task<Ticket?> GetTicketForAssignmentAsync(Guid ticketId, CancellationToken cancellationToken);
+    Task<Ticket?> GetTicketForResolutionAsync(Guid ticketId, CancellationToken cancellationToken);
     Task<IReadOnlyList<EligibleAgentDto>> GetEligibleAgentsAsync(Guid campaignId, Guid accountId, CancellationToken cancellationToken);
     Task<AgentAssignmentCandidateSnapshot?> GetAgentAssignmentCandidateAsync(Guid userId, CancellationToken cancellationToken);
     Task AddAssignmentAsync(TicketAssignment assignment, CancellationToken cancellationToken);
@@ -18,6 +20,10 @@ public interface ITicketRepository
     Task AddEscalationAsync(TicketEscalation escalation, CancellationToken cancellationToken);
     Task<bool> HasActiveEscalationAsync(Guid ticketId, CancellationToken cancellationToken);
     Task<IReadOnlyList<EscalationQueueItemDto>> GetEscalationQueueAsync(CancellationToken cancellationToken);
+    Task AddResolutionAsync(TicketResolution resolution, CancellationToken cancellationToken);
+    Task DeactivateActiveEscalationsAsync(Guid ticketId, DateTime resolvedAt, CancellationToken cancellationToken);
+    Task<IReadOnlyList<TicketStatusHistoryItemDto>> GetTicketStatusHistoryAsync(Guid ticketId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<CustomerTicketSummaryDto>> GetCustomerTicketHistoryAsync(Guid customerId, CancellationToken cancellationToken);
     Task SaveChangesAsync(CancellationToken cancellationToken);
     Task<TicketDetailDto?> GetTicketByIdAsync(Guid id, CancellationToken cancellationToken);
     Task<IReadOnlyList<TicketListItemDto>> GetTicketsAsync(CancellationToken cancellationToken);

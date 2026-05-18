@@ -61,6 +61,9 @@ public static class DependencyInjection
         services.AddScoped<GetTicketCommentsQueryHandler>();
         services.AddScoped<EscalateTicketCommandHandler>();
         services.AddScoped<GetEscalationQueueQueryHandler>();
+        services.AddScoped<ResolveTicketCommandHandler>();
+        services.AddScoped<CloseTicketCommandHandler>();
+        services.AddScoped<GetTicketStatusHistoryQueryHandler>();
 
         return services;
     }

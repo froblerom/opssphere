@@ -41,3 +41,7 @@ public sealed record EscalateTicketCommand(
     string? EscalationReason);
 
 public sealed record GetEscalationQueueQuery;
+
+public sealed record ResolveTicketCommand(Guid TicketId, string? ResolutionSummary, string? ResolutionCode);
+public sealed record CloseTicketCommand(Guid TicketId);
+public sealed record GetTicketStatusHistoryQuery(Guid TicketId);

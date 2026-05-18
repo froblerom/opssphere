@@ -1,6 +1,7 @@
 using System.Text.Json;
 using OpsSphere.Application.Common.Exceptions;
 using OpsSphere.Application.Common.Interfaces;
+using OpsSphere.Application.Features.TicketManagement;
 
 namespace OpsSphere.Application.Features.CustomerManagement;
 
@@ -100,13 +101,13 @@ public sealed class DeactivateCustomerCommandHandler(ICustomerManagementReposito
     }
 }
 
-public sealed class GetCustomerTicketsQueryHandler(ICustomerManagementRepository repository)
+public sealed class GetCustomerTicketsQueryHandler(ICustomerManagementRepository customerRepository, ITicketRepository ticketRepository)
 {
     public async Task<IReadOnlyList<CustomerTicketSummaryDto>> HandleAsync(GetCustomerTicketsQuery query, CancellationToken cancellationToken)
     {
-        _ = await repository.GetCustomerByIdAsync(query.CustomerId, cancellationToken)
+        _ = await customerRepository.GetCustomerByIdAsync(query.CustomerId, cancellationToken)
             ?? throw new NotFoundException("Customer", query.CustomerId);
-        return [];
+        return await ticketRepository.GetCustomerTicketHistoryAsync(query.CustomerId, cancellationToken);
     }
 }
 

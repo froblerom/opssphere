@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using OpsSphere.Application.Common.Authorization;
 using OpsSphere.Application.Common.Exceptions;
 using OpsSphere.Application.Common.Interfaces;
+using OpsSphere.Application.Features.CustomerManagement;
 using OpsSphere.Application.Features.TicketManagement;
 using OpsSphere.Domain.Authorization;
 using OpsSphere.Domain.Entities;
@@ -54,6 +55,13 @@ internal sealed class TicketRepository : ITicketRepository
 
     public async Task<Ticket?> GetTicketForAssignmentAsync(Guid ticketId, CancellationToken cancellationToken) =>
         await ApplyScope(await GetProfileAsync(cancellationToken), dbContext.Tickets.Where(t => !t.IsDeleted))
+            .Where(t => t.Id == ticketId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    public async Task<Ticket?> GetTicketForResolutionAsync(Guid ticketId, CancellationToken cancellationToken) =>
+        await ApplyScope(await GetProfileAsync(cancellationToken), dbContext.Tickets.Where(t => !t.IsDeleted))
+            .Include(t => t.SlaStateRecord)
+            .Include(t => t.Resolution)
             .Where(t => t.Id == ticketId)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -159,6 +167,46 @@ internal sealed class TicketRepository : ITicketRepository
         return Task.CompletedTask;
     }
 
+    public Task AddResolutionAsync(TicketResolution resolution, CancellationToken cancellationToken)
+    {
+        dbContext.TicketResolutions.Add(resolution);
+        return Task.CompletedTask;
+    }
+
+    public async Task DeactivateActiveEscalationsAsync(Guid ticketId, DateTime resolvedAt, CancellationToken cancellationToken)
+    {
+        var activeEscalations = await dbContext.TicketEscalations
+            .Where(e => e.TicketId == ticketId && e.IsActive)
+            .ToListAsync(cancellationToken);
+
+        foreach (var escalation in activeEscalations)
+        {
+            escalation.IsActive = false;
+            escalation.ResolvedAt = resolvedAt;
+        }
+    }
+
+    public async Task<IReadOnlyList<TicketStatusHistoryItemDto>> GetTicketStatusHistoryAsync(Guid ticketId, CancellationToken cancellationToken) =>
+        await dbContext.TicketStatusHistory
+            .AsNoTracking()
+            .Where(h => h.TicketId == ticketId)
+            .OrderBy(h => h.CreatedAt)
+            .ThenBy(h => h.Id)
+            .Select(h => new TicketStatusHistoryItemDto(
+                h.Id, h.TicketId, h.PreviousStatus, h.NewStatus,
+                h.ChangedByUserId, h.ChangeReason, h.CreatedAt))
+            .ToArrayAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<CustomerTicketSummaryDto>> GetCustomerTicketHistoryAsync(Guid customerId, CancellationToken cancellationToken) =>
+        await ApplyScope(await GetProfileAsync(cancellationToken), dbContext.Tickets.Where(t => !t.IsDeleted && t.CustomerId == customerId))
+            .AsNoTracking()
+            .OrderByDescending(t => t.CreatedAt)
+            .Select(t => new CustomerTicketSummaryDto(
+                t.Id, t.TicketNumber,
+                t.Status.ToString(), t.Priority.ToString(), t.SlaState.ToString(),
+                t.CreatedAt, t.ResolvedAt, t.ClosedAt))
+            .ToArrayAsync(cancellationToken);
+
     public async Task<bool> HasActiveEscalationAsync(Guid ticketId, CancellationToken cancellationToken) =>
         await dbContext.TicketEscalations
             .AsNoTracking()
@@ -235,7 +283,9 @@ internal sealed class TicketRepository : ITicketRepository
                 t.CreatedAt,
                 t.UpdatedAt,
                 t.AssignedAgentUserId,
-                t.AssignedAgentUser == null ? null : t.AssignedAgentUser.DisplayName))
+                t.AssignedAgentUser == null ? null : t.AssignedAgentUser.DisplayName,
+                t.ResolvedAt,
+                t.ClosedAt))
             .FirstOrDefaultAsync(cancellationToken);
 
     public async Task<IReadOnlyList<TicketListItemDto>> GetTicketsAsync(CancellationToken cancellationToken) =>

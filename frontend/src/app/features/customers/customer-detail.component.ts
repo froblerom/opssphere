@@ -5,7 +5,7 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { AppPermissions } from '../../core/auth/auth-permissions';
 import { AuthService } from '../../core/auth/auth.service';
 import { CustomerService } from './customer.service';
-import { Customer } from './customer.models';
+import { Customer, CustomerTicketSummary } from './customer.models';
 
 @Component({
   selector: 'app-customer-detail',
@@ -48,7 +48,23 @@ import { Customer } from './customer.models';
 
         <div *ngIf="canViewHistory" class="ticket-history">
           <h2>Ticket History</h2>
-          <p class="placeholder-note">Ticket history will be available in a future release.</p>
+          <div *ngIf="ticketHistoryError" class="error">{{ ticketHistoryError }}</div>
+          <div *ngIf="ticketHistory.length > 0; else noTickets" class="ticket-history-list">
+            <article *ngFor="let ticket of ticketHistory" class="ticket-history-item">
+              <div>
+                <a [routerLink]="['/tickets', ticket.id]">{{ ticket.ticketNumber }}</a>
+                <span>{{ ticket.status }}</span>
+                <span>{{ ticket.priority }}</span>
+                <span>{{ ticket.slaState }}</span>
+              </div>
+              <div>Created: {{ ticket.createdAt | date:'mediumDate' }}</div>
+              <div *ngIf="ticket.resolvedAt">Resolved: {{ ticket.resolvedAt | date:'mediumDate' }}</div>
+              <div *ngIf="ticket.closedAt">Closed: {{ ticket.closedAt | date:'mediumDate' }}</div>
+            </article>
+          </div>
+          <ng-template #noTickets>
+            <p>No tickets found for this customer.</p>
+          </ng-template>
         </div>
       </ng-container>
 
@@ -63,6 +79,8 @@ export class CustomerDetailComponent implements OnInit {
   private readonly authService = inject(AuthService);
 
   customer: Customer | null = null;
+  ticketHistory: CustomerTicketSummary[] = [];
+  ticketHistoryError: string | null = null;
   loading = true;
   error: string | null = null;
 
@@ -80,6 +98,16 @@ export class CustomerDetailComponent implements OnInit {
       next: (customer) => {
         this.customer = customer;
         this.loading = false;
+        if (this.canViewHistory) {
+          this.customerService.getCustomerTickets(id).subscribe({
+            next: (tickets) => {
+              this.ticketHistory = tickets;
+            },
+            error: () => {
+              this.ticketHistoryError = 'Failed to load ticket history.';
+            }
+          });
+        }
       },
       error: () => {
         this.error = 'Customer not found.';

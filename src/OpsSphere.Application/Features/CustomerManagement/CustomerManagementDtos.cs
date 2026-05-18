@@ -14,4 +14,7 @@ public sealed record CustomerDto(
     DateTime CreatedAt,
     DateTime? UpdatedAt);
 
-public sealed record CustomerTicketSummaryDto(Guid Id);
+public sealed record CustomerTicketSummaryDto(
+    Guid Id, string TicketNumber,
+    string Status, string Priority, string SlaState,
+    DateTime CreatedAt, DateTime? ResolvedAt, DateTime? ClosedAt);

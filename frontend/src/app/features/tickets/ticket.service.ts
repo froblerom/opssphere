@@ -8,15 +8,19 @@ import {
   AddCommentResponse,
   AssignTicketRequest,
   AssignTicketResponse,
+  CloseTicketResponse,
   CreateTicketRequest,
   CreateTicketResponse,
   EligibleAgentDto,
   EscalateTicketRequest,
   EscalateTicketResponse,
   EscalationQueueItemDto,
+  ResolveTicketRequest,
+  ResolveTicketResponse,
   TicketCommentDto,
   TicketDetail,
   TicketListItem,
+  TicketStatusHistoryItemDto,
   UpdateTicketPriorityRequest,
   UpdateTicketPriorityResponse,
   UpdateTicketStatusRequest,
@@ -103,6 +107,29 @@ export class TicketService {
 
     return this.apiClient
       .put<UpdateTicketPriorityRequest, ApiResponse<UpdateTicketPriorityResponse>>(`tickets/${ticketId}/priority`, request)
+      .pipe(map((r) => r.data));
+  }
+
+  resolveTicket(ticketId: string, resolutionSummary: string, resolutionCode?: string | null) {
+    const request: ResolveTicketRequest = {
+      resolutionSummary: resolutionSummary.trim(),
+      resolutionCode: resolutionCode?.trim() || null
+    };
+
+    return this.apiClient
+      .post<ResolveTicketRequest, ApiResponse<ResolveTicketResponse>>(`tickets/${ticketId}/resolve`, request)
+      .pipe(map((r) => r.data));
+  }
+
+  closeTicket(ticketId: string) {
+    return this.apiClient
+      .post<Record<string, never>, ApiResponse<CloseTicketResponse>>(`tickets/${ticketId}/close`, {})
+      .pipe(map((r) => r.data));
+  }
+
+  getTicketHistory(ticketId: string) {
+    return this.apiClient
+      .get<ApiResponse<TicketStatusHistoryItemDto[]>>(`tickets/${ticketId}/history`)
       .pipe(map((r) => r.data));
   }
 }

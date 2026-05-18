@@ -24,4 +24,11 @@ export interface CustomerRequest {
 
 export interface CustomerTicketSummary {
   id: string;
+  ticketNumber: string;
+  status: string;
+  priority: string;
+  slaState: string;
+  createdAt: string;
+  resolvedAt?: string | null;
+  closedAt?: string | null;
 }

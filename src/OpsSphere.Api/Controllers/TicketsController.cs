@@ -23,6 +23,9 @@ public sealed class TicketsController : ControllerBase
     private readonly GetTicketCommentsQueryHandler getTicketComments;
     private readonly EscalateTicketCommandHandler escalateTicket;
     private readonly GetEscalationQueueQueryHandler getEscalationQueue;
+    private readonly ResolveTicketCommandHandler resolveTicket;
+    private readonly CloseTicketCommandHandler closeTicket;
+    private readonly GetTicketStatusHistoryQueryHandler getTicketStatusHistory;
 
     public TicketsController(
         ILogger<TicketsController> logger,
@@ -36,7 +39,10 @@ public sealed class TicketsController : ControllerBase
         AddInternalCommentCommandHandler addInternalComment,
         GetTicketCommentsQueryHandler getTicketComments,
         EscalateTicketCommandHandler escalateTicket,
-        GetEscalationQueueQueryHandler getEscalationQueue)
+        GetEscalationQueueQueryHandler getEscalationQueue,
+        ResolveTicketCommandHandler resolveTicket,
+        CloseTicketCommandHandler closeTicket,
+        GetTicketStatusHistoryQueryHandler getTicketStatusHistory)
     {
         this.logger = logger;
         this.createTicket = createTicket;
@@ -50,6 +56,9 @@ public sealed class TicketsController : ControllerBase
         this.getTicketComments = getTicketComments;
         this.escalateTicket = escalateTicket;
         this.getEscalationQueue = getEscalationQueue;
+        this.resolveTicket = resolveTicket;
+        this.closeTicket = closeTicket;
+        this.getTicketStatusHistory = getTicketStatusHistory;
     }
 
     [HttpPost("tickets")]
@@ -162,6 +171,36 @@ public sealed class TicketsController : ControllerBase
             "Ticket escalated. TicketId={TicketId} TicketNumber={TicketNumber} PreviousStatus={PreviousStatus}",
             result.TicketId, result.TicketNumber, result.PreviousStatus);
         return Ok(new ApiResponse<EscalateTicketResponse>(result));
+    }
+
+    [HttpPost("tickets/{id:guid}/resolve")]
+    [Authorize(Policy = Permissions.TicketsResolve)]
+    public async Task<IActionResult> ResolveTicket(Guid id, [FromBody] ResolveTicketRequest request, CancellationToken cancellationToken)
+    {
+        var result = await resolveTicket.HandleAsync(new ResolveTicketCommand(id, request.ResolutionSummary, request.ResolutionCode), cancellationToken);
+        logger.LogInformation(
+            "Ticket resolved. TicketId={TicketId} TicketNumber={TicketNumber} FinalSlaState={FinalSlaState}",
+            result.TicketId, result.TicketNumber, result.FinalSlaState);
+        return Ok(new ApiResponse<ResolveTicketResponse>(result));
+    }
+
+    [HttpPost("tickets/{id:guid}/close")]
+    [Authorize(Policy = Permissions.TicketsClose)]
+    public async Task<IActionResult> CloseTicket(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await closeTicket.HandleAsync(new CloseTicketCommand(id), cancellationToken);
+        logger.LogInformation(
+            "Ticket closed. TicketId={TicketId} TicketNumber={TicketNumber} PreviousStatus={PreviousStatus}",
+            result.TicketId, result.TicketNumber, result.PreviousStatus);
+        return Ok(new ApiResponse<CloseTicketResponse>(result));
+    }
+
+    [HttpGet("tickets/{id:guid}/history")]
+    [Authorize(Policy = Permissions.TicketsHistoryView)]
+    public async Task<IActionResult> GetTicketHistory(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await getTicketStatusHistory.HandleAsync(new GetTicketStatusHistoryQuery(id), cancellationToken);
+        return Ok(new ApiResponse<IReadOnlyList<TicketStatusHistoryItemDto>>(result));
     }
 
     public sealed record CreateTicketRequest(
