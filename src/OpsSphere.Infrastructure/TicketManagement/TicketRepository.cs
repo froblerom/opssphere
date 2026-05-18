@@ -7,6 +7,7 @@ using OpsSphere.Application.Features.TicketManagement;
 using OpsSphere.Domain.Authorization;
 using OpsSphere.Domain.Entities;
 using OpsSphere.Domain.Enums;
+using OpsSphere.Domain.Services;
 using OpsSphere.Infrastructure.Authorization;
 using OpsSphere.Infrastructure.Persistence;
 
@@ -16,11 +17,16 @@ internal sealed class TicketRepository : ITicketRepository
 {
     private readonly OpsSphereDbContext dbContext;
     private readonly ICurrentUserAuthorizationService authorizationService;
+    private readonly SlaEvaluator slaEvaluator;
 
-    public TicketRepository(OpsSphereDbContext dbContext, ICurrentUserAuthorizationService authorizationService)
+    public TicketRepository(
+        OpsSphereDbContext dbContext,
+        ICurrentUserAuthorizationService authorizationService,
+        SlaEvaluator slaEvaluator)
     {
         this.dbContext = dbContext;
         this.authorizationService = authorizationService;
+        this.slaEvaluator = slaEvaluator;
     }
 
     public async Task<CampaignTicketContextSnapshot?> GetCampaignSnapshotAsync(Guid campaignId, CancellationToken cancellationToken) =>
@@ -198,14 +204,35 @@ internal sealed class TicketRepository : ITicketRepository
             .ToArrayAsync(cancellationToken);
 
     public async Task<IReadOnlyList<CustomerTicketSummaryDto>> GetCustomerTicketHistoryAsync(Guid customerId, CancellationToken cancellationToken) =>
-        await ApplyScope(await GetProfileAsync(cancellationToken), dbContext.Tickets.Where(t => !t.IsDeleted && t.CustomerId == customerId))
+        (await ApplyScope(await GetProfileAsync(cancellationToken), dbContext.Tickets.Where(t => !t.IsDeleted && t.CustomerId == customerId))
             .AsNoTracking()
             .OrderByDescending(t => t.CreatedAt)
+            .Select(t => new TicketSlaReadModel(
+                t.Id,
+                t.TicketNumber,
+                null,
+                null,
+                null,
+                t.Priority,
+                t.Status,
+                t.SlaState,
+                t.SlaDueAt,
+                t.IsEscalated,
+                t.CreatedAt,
+                t.AssignedAgentUserId,
+                null,
+                t.ResolvedAt,
+                t.ClosedAt,
+                t.SlaStateRecord == null ? null : t.SlaStateRecord.StartedAt,
+                t.SlaStateRecord == null ? null : t.SlaStateRecord.DueAt,
+                t.SlaStateRecord == null ? null : t.SlaStateRecord.AtRiskThresholdPercent,
+                t.SlaStateRecord == null ? null : t.SlaStateRecord.CompletedAt))
+            .ToArrayAsync(cancellationToken))
             .Select(t => new CustomerTicketSummaryDto(
                 t.Id, t.TicketNumber,
-                t.Status.ToString(), t.Priority.ToString(), t.SlaState.ToString(),
+                t.Status.ToString(), t.Priority.ToString(), EvaluateSlaState(t, DateTime.UtcNow).ToString(),
                 t.CreatedAt, t.ResolvedAt, t.ClosedAt))
-            .ToArrayAsync(cancellationToken);
+            .ToArray();
 
     public async Task<bool> HasActiveEscalationAsync(Guid ticketId, CancellationToken cancellationToken) =>
         await dbContext.TicketEscalations
@@ -220,7 +247,7 @@ internal sealed class TicketRepository : ITicketRepository
                 .AsNoTracking()
                 .Where(t => !t.IsDeleted && t.Status == TicketStatus.Escalated && t.IsEscalated));
 
-        return await dbContext.TicketEscalations
+        var rows = await dbContext.TicketEscalations
             .AsNoTracking()
             .Where(e => e.IsActive)
             .Join(
@@ -230,21 +257,44 @@ internal sealed class TicketRepository : ITicketRepository
                 (escalation, ticket) => new { escalation, ticket })
             .OrderByDescending(item => item.escalation.CreatedAt)
             .ThenBy(item => item.escalation.Id)
-            .Select(item => new EscalationQueueItemDto(
+            .Select(item => new EscalationQueueReadModel(
                 item.escalation.Id,
                 item.ticket.Id,
                 item.ticket.TicketNumber,
                 item.ticket.Customer.FirstName + " " + item.ticket.Customer.LastName,
                 item.ticket.Account.Name,
                 item.ticket.Campaign.Name,
-                item.ticket.Priority.ToString(),
-                item.ticket.Status.ToString(),
-                item.ticket.SlaState.ToString(),
+                item.ticket.Priority,
+                item.ticket.Status,
+                item.ticket.SlaState,
+                item.ticket.SlaDueAt,
                 item.escalation.CreatedAt,
                 item.escalation.EscalatedByUserId,
                 item.escalation.EscalatedByUser.DisplayName,
-                item.escalation.EscalationReason))
+                item.escalation.EscalationReason,
+                item.ticket.SlaStateRecord == null ? null : item.ticket.SlaStateRecord.StartedAt,
+                item.ticket.SlaStateRecord == null ? null : item.ticket.SlaStateRecord.DueAt,
+                item.ticket.SlaStateRecord == null ? null : item.ticket.SlaStateRecord.AtRiskThresholdPercent,
+                item.ticket.SlaStateRecord == null ? null : item.ticket.SlaStateRecord.CompletedAt))
             .ToArrayAsync(cancellationToken);
+
+        var evaluatedAt = DateTime.UtcNow;
+        return rows
+            .Select(item => new EscalationQueueItemDto(
+                item.EscalationId,
+                item.TicketId,
+                item.TicketNumber,
+                item.CustomerName,
+                item.AccountName,
+                item.CampaignName,
+                item.Priority.ToString(),
+                item.Status.ToString(),
+                EvaluateSlaState(item, evaluatedAt).ToString(),
+                item.EscalatedAt,
+                item.EscalatedByUserId,
+                item.EscalatedByName,
+                item.EscalationReason))
+            .ToArray();
     }
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken)
@@ -260,9 +310,9 @@ internal sealed class TicketRepository : ITicketRepository
     }
 
     public async Task<TicketDetailDto?> GetTicketByIdAsync(Guid id, CancellationToken cancellationToken) =>
-        await ApplyScope(await GetProfileAsync(cancellationToken), dbContext.Tickets.AsNoTracking().Where(t => !t.IsDeleted))
+        (await ApplyScope(await GetProfileAsync(cancellationToken), dbContext.Tickets.AsNoTracking().Where(t => !t.IsDeleted))
             .Where(t => t.Id == id)
-            .Select(t => new TicketDetailDto(
+            .Select(t => new TicketDetailReadModel(
                 t.Id,
                 t.TicketNumber,
                 t.CustomerId,
@@ -275,8 +325,9 @@ internal sealed class TicketRepository : ITicketRepository
                 t.Subject,
                 t.Description,
                 t.Priority.ToString(),
-                t.Status.ToString(),
-                t.SlaState.ToString(),
+                t.Priority,
+                t.Status,
+                t.SlaState,
                 t.SlaDueAt,
                 t.IsEscalated,
                 t.CreatedByUserId,
@@ -285,26 +336,103 @@ internal sealed class TicketRepository : ITicketRepository
                 t.AssignedAgentUserId,
                 t.AssignedAgentUser == null ? null : t.AssignedAgentUser.DisplayName,
                 t.ResolvedAt,
-                t.ClosedAt))
-            .FirstOrDefaultAsync(cancellationToken);
+                t.ClosedAt,
+                t.SlaStateRecord == null ? null : t.SlaStateRecord.StartedAt,
+                t.SlaStateRecord == null ? null : t.SlaStateRecord.DueAt,
+                t.SlaStateRecord == null ? null : t.SlaStateRecord.AtRiskThresholdPercent,
+                t.SlaStateRecord == null ? null : t.SlaStateRecord.CompletedAt))
+            .FirstOrDefaultAsync(cancellationToken)) is { } ticket
+            ? new TicketDetailDto(
+                ticket.Id,
+                ticket.TicketNumber,
+                ticket.CustomerId,
+                ticket.CustomerName,
+                ticket.AccountId,
+                ticket.AccountName,
+                ticket.CampaignId,
+                ticket.CampaignName,
+                ticket.Category,
+                ticket.Subject,
+                ticket.Description,
+                ticket.Priority.ToString(),
+                ticket.Status.ToString(),
+                EvaluateSlaState(ticket, DateTime.UtcNow).ToString(),
+                ticket.SlaDueAt,
+                ticket.IsEscalated,
+                ticket.CreatedByUserId,
+                ticket.CreatedAt,
+                ticket.UpdatedAt,
+                ticket.AssignedAgentUserId,
+                ticket.AssignedAgentName,
+                ticket.ResolvedAt,
+                ticket.ClosedAt)
+            : null;
 
-    public async Task<IReadOnlyList<TicketListItemDto>> GetTicketsAsync(CancellationToken cancellationToken) =>
-        await ApplyScope(await GetProfileAsync(cancellationToken), dbContext.Tickets.AsNoTracking().Where(t => !t.IsDeleted))
+    public async Task<IReadOnlyList<TicketListItemDto>> GetTicketsAsync(GetTicketsQuery query, CancellationToken cancellationToken)
+    {
+        var ticketsQuery = ApplyScope(await GetProfileAsync(cancellationToken), dbContext.Tickets.AsNoTracking().Where(t => !t.IsDeleted));
+        if (query.Status.HasValue)
+            ticketsQuery = ticketsQuery.Where(t => t.Status == query.Status.Value);
+        if (query.Priority.HasValue)
+            ticketsQuery = ticketsQuery.Where(t => t.Priority == query.Priority.Value);
+        if (query.AccountId.HasValue)
+            ticketsQuery = ticketsQuery.Where(t => t.AccountId == query.AccountId.Value);
+        if (query.CampaignId.HasValue)
+            ticketsQuery = ticketsQuery.Where(t => t.CampaignId == query.CampaignId.Value);
+        if (query.AssignedAgentUserId.HasValue)
+            ticketsQuery = ticketsQuery.Where(t => t.AssignedAgentUserId == query.AssignedAgentUserId.Value);
+
+        var ticketReadModels = await ticketsQuery
             .OrderByDescending(t => t.CreatedAt)
-            .Select(t => new TicketListItemDto(
+            .Select(t => new TicketSlaReadModel(
                 t.Id,
                 t.TicketNumber,
                 t.Customer.FirstName + " " + t.Customer.LastName,
                 t.Account.Name,
                 t.Campaign.Name,
-                t.Priority.ToString(),
-                t.Status.ToString(),
-                t.SlaState.ToString(),
+                t.Priority,
+                t.Status,
+                t.SlaState,
+                t.SlaDueAt,
                 t.IsEscalated,
                 t.CreatedAt,
                 t.AssignedAgentUserId,
-                t.AssignedAgentUser == null ? null : t.AssignedAgentUser.DisplayName))
+                t.AssignedAgentUser == null ? null : t.AssignedAgentUser.DisplayName,
+                t.ResolvedAt,
+                t.ClosedAt,
+                t.SlaStateRecord == null ? null : t.SlaStateRecord.StartedAt,
+                t.SlaStateRecord == null ? null : t.SlaStateRecord.DueAt,
+                t.SlaStateRecord == null ? null : t.SlaStateRecord.AtRiskThresholdPercent,
+                t.SlaStateRecord == null ? null : t.SlaStateRecord.CompletedAt))
             .ToArrayAsync(cancellationToken);
+
+        var evaluatedAt = DateTime.UtcNow;
+        var evaluatedTickets = ticketReadModels
+            .Select(t => new
+            {
+                Ticket = t,
+                SlaState = EvaluateSlaState(t, evaluatedAt)
+            });
+
+        if (query.SlaState.HasValue)
+            evaluatedTickets = evaluatedTickets.Where(t => t.SlaState == query.SlaState.Value);
+
+        return evaluatedTickets
+            .Select(t => new TicketListItemDto(
+                t.Ticket.Id,
+                t.Ticket.TicketNumber,
+                t.Ticket.CustomerName ?? string.Empty,
+                t.Ticket.AccountName ?? string.Empty,
+                t.Ticket.CampaignName ?? string.Empty,
+                t.Ticket.Priority.ToString(),
+                t.Ticket.Status.ToString(),
+                t.SlaState.ToString(),
+                t.Ticket.IsEscalated,
+                t.Ticket.CreatedAt,
+                t.Ticket.AssignedAgentUserId,
+                t.Ticket.AssignedAgentName))
+            .ToArray();
+    }
 
     public async Task<int> GetLatestSequenceForDatePrefixAsync(string datePrefix, CancellationToken cancellationToken)
     {
@@ -327,4 +455,109 @@ internal sealed class TicketRepository : ITicketRepository
 
     private static IQueryable<Ticket> ApplyScope(CurrentUserAuthorizationProfile profile, IQueryable<Ticket> query) =>
         query.ApplyScopeFilter(profile);
+
+    private SlaState EvaluateSlaState(ISlaReadModel ticket, DateTime evaluatedAt)
+    {
+        if (ticket.Status is TicketStatus.Resolved or TicketStatus.Closed || ticket.SlaCompletedAt.HasValue)
+            return SlaState.Completed;
+
+        if (!ticket.SlaStartedAt.HasValue || !ticket.SlaDueAt.HasValue)
+            return ticket.StoredSlaState;
+
+        return slaEvaluator.Evaluate(
+            ticket.SlaStartedAt.Value,
+            ticket.SlaDueAt.Value,
+            ticket.SlaAtRiskThresholdPercent ?? 80,
+            evaluatedAt);
+    }
+
+    private interface ISlaReadModel
+    {
+        TicketStatus Status { get; }
+        SlaState StoredSlaState { get; }
+        DateTime? SlaStartedAt { get; }
+        DateTime? SlaDueAt { get; }
+        int? SlaAtRiskThresholdPercent { get; }
+        DateTime? SlaCompletedAt { get; }
+    }
+
+    private sealed record TicketSlaReadModel(
+        Guid Id,
+        string TicketNumber,
+        string? CustomerName,
+        string? AccountName,
+        string? CampaignName,
+        TicketPriority Priority,
+        TicketStatus Status,
+        SlaState StoredSlaState,
+        DateTime? SlaDueAt,
+        bool IsEscalated,
+        DateTime CreatedAt,
+        Guid? AssignedAgentUserId,
+        string? AssignedAgentName,
+        DateTime? ResolvedAt,
+        DateTime? ClosedAt,
+        DateTime? SlaStartedAt,
+        DateTime? SlaRecordDueAt,
+        int? SlaAtRiskThresholdPercent,
+        DateTime? SlaCompletedAt) : ISlaReadModel
+    {
+        DateTime? ISlaReadModel.SlaDueAt => SlaRecordDueAt ?? SlaDueAt;
+    }
+
+    private sealed record TicketDetailReadModel(
+        Guid Id,
+        string TicketNumber,
+        Guid CustomerId,
+        string CustomerName,
+        Guid AccountId,
+        string AccountName,
+        Guid CampaignId,
+        string CampaignName,
+        string Category,
+        string Subject,
+        string Description,
+        string PriorityName,
+        TicketPriority Priority,
+        TicketStatus Status,
+        SlaState StoredSlaState,
+        DateTime? SlaDueAt,
+        bool IsEscalated,
+        Guid CreatedByUserId,
+        DateTime CreatedAt,
+        DateTime? UpdatedAt,
+        Guid? AssignedAgentUserId,
+        string? AssignedAgentName,
+        DateTime? ResolvedAt,
+        DateTime? ClosedAt,
+        DateTime? SlaStartedAt,
+        DateTime? SlaRecordDueAt,
+        int? SlaAtRiskThresholdPercent,
+        DateTime? SlaCompletedAt) : ISlaReadModel
+    {
+        DateTime? ISlaReadModel.SlaDueAt => SlaRecordDueAt ?? SlaDueAt;
+    }
+
+    private sealed record EscalationQueueReadModel(
+        Guid EscalationId,
+        Guid TicketId,
+        string TicketNumber,
+        string CustomerName,
+        string AccountName,
+        string CampaignName,
+        TicketPriority Priority,
+        TicketStatus Status,
+        SlaState StoredSlaState,
+        DateTime? SlaDueAt,
+        DateTime EscalatedAt,
+        Guid EscalatedByUserId,
+        string EscalatedByName,
+        string EscalationReason,
+        DateTime? SlaStartedAt,
+        DateTime? SlaRecordDueAt,
+        int? SlaAtRiskThresholdPercent,
+        DateTime? SlaCompletedAt) : ISlaReadModel
+    {
+        DateTime? ISlaReadModel.SlaDueAt => SlaRecordDueAt ?? SlaDueAt;
+    }
 }

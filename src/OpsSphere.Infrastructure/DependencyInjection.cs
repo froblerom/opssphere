@@ -10,6 +10,7 @@ using OpsSphere.Infrastructure.Authorization;
 using OpsSphere.Infrastructure.Identity;
 using OpsSphere.Infrastructure.CustomerManagement;
 using OpsSphere.Infrastructure.OrganizationManagement;
+using OpsSphere.Infrastructure.SlaManagement;
 using OpsSphere.Infrastructure.TicketManagement;
 using OpsSphere.Infrastructure.Persistence;
 using OpsSphere.Infrastructure.Persistence.SeedData;
@@ -49,6 +50,8 @@ public static class DependencyInjection
         services.AddScoped<IOrganizationManagementRepository, OrganizationManagementRepository>();
         services.AddScoped<ICustomerManagementRepository, CustomerManagementRepository>();
         services.AddScoped<ITicketRepository, TicketRepository>();
+        services.AddScoped<ISlaRepository, SlaRepository>();
+        services.AddScoped<ISlaSummaryRepository, SlaSummaryRepository>();
         services.AddScoped<ITicketNumberGenerator, SequentialTicketNumberGenerator>();
         services.AddScoped<IAuditWriter, AuditWriter>();
         services.AddScoped<OpsSphereDataSeeder>();

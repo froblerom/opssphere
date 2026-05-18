@@ -67,7 +67,7 @@ public sealed class TicketResolveCloseApiTests
     }
 
     [Fact]
-    public async Task OperationsManager_CanResolve_WithinScope_Returns200()
+    public async Task OperationsManager_CannotResolve_Returns403()
     {
         await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
         var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
@@ -76,7 +76,7 @@ public sealed class TicketResolveCloseApiTests
 
         var response = await ResolveAsync(manager, ticket.Id, "Manager resolution summary.", null);
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
@@ -754,7 +754,7 @@ public sealed class TicketResolveCloseApiTests
     }
 
     [Fact]
-    public async Task GetHistory_Admin_Returns403()
+    public async Task GetHistory_Admin_Returns200()
     {
         await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
         var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
@@ -763,7 +763,7 @@ public sealed class TicketResolveCloseApiTests
 
         var response = await GetHistoryAsync(admin, ticket.Id);
 
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]

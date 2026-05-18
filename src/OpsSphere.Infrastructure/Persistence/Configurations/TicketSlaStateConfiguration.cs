@@ -12,6 +12,7 @@ internal sealed class TicketSlaStateConfiguration : IEntityTypeConfiguration<Tic
         builder.HasKey(s => s.Id);
         builder.Property(s => s.StartedAt).IsRequired();
         builder.Property(s => s.DueAt).IsRequired();
+        builder.Property(s => s.AtRiskThresholdPercent).IsRequired().HasDefaultValue(80);
         builder.Property(s => s.State).IsRequired().HasMaxLength(50);
         builder.Property(s => s.FinalState).HasMaxLength(50);
 

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using OpsSphere.Application.Common.Exceptions;
 using OpsSphere.Application.Common.Interfaces;
 using OpsSphere.Domain.Authorization;
@@ -11,10 +12,12 @@ namespace OpsSphere.Application.Features.TicketManagement;
 
 public sealed class CreateTicketCommandHandler(
     ITicketRepository repository,
+    ISlaRepository slaRepository,
     IScopeAuthorizationService scopeAuthorization,
     ICurrentUserContext currentUser,
     IAuditWriter auditWriter,
-    ITicketNumberGenerator ticketNumberGenerator)
+    ITicketNumberGenerator ticketNumberGenerator,
+    ILogger<CreateTicketCommandHandler> logger)
 {
     public async Task<CreateTicketResult> HandleAsync(CreateTicketCommand command, CancellationToken cancellationToken)
     {
@@ -42,7 +45,25 @@ public sealed class CreateTicketCommandHandler(
 
         var ticketNumber = await ticketNumberGenerator.GenerateAsync(cancellationToken);
         var now = DateTime.UtcNow;
-        var slaDueAt = now.Add(TicketSlaConstants.GetSlaDuration(priority));
+        var slaPolicy = await slaRepository.GetMatchingPolicyAsync(
+            command.AccountId,
+            command.CampaignId,
+            priority,
+            cancellationToken);
+        if (slaPolicy is null)
+        {
+            logger.LogWarning(
+                "No active SLA policy found for ticket creation. AccountId={AccountId} CampaignId={CampaignId} Priority={Priority}; using fallback SLA duration.",
+                command.AccountId,
+                command.CampaignId,
+                priority);
+        }
+
+        var slaDuration = slaPolicy is null
+            ? TicketSlaConstants.GetSlaDuration(priority)
+            : TimeSpan.FromHours(slaPolicy.TargetHours);
+        var atRiskThresholdPercent = slaPolicy?.AtRiskThresholdPercent ?? TicketSlaConstants.DefaultAtRiskThresholdPercent;
+        var slaDueAt = now.Add(slaDuration);
         var createdByUserId = currentUser.UserId ?? throw new ValidationException("userId", "Authenticated user context is required.");
 
         var ticket = new Ticket
@@ -82,9 +103,10 @@ public sealed class CreateTicketCommandHandler(
         {
             Id = Guid.NewGuid(),
             TicketId = ticket.Id,
-            SlaPolicyId = null,
+            SlaPolicyId = slaPolicy?.Id,
             StartedAt = now,
             DueAt = slaDueAt,
+            AtRiskThresholdPercent = atRiskThresholdPercent,
             State = SlaState.WithinSla.ToString()
         };
 
@@ -118,7 +140,7 @@ public sealed class CreateTicketCommandHandler(
 public sealed class GetTicketsQueryHandler(ITicketRepository repository)
 {
     public Task<IReadOnlyList<TicketListItemDto>> HandleAsync(GetTicketsQuery query, CancellationToken cancellationToken) =>
-        repository.GetTicketsAsync(cancellationToken);
+        repository.GetTicketsAsync(query, cancellationToken);
 }
 
 public sealed class GetTicketByIdQueryHandler(ITicketRepository repository)
@@ -717,7 +739,8 @@ public sealed class GetEscalationQueueQueryHandler(ITicketRepository repository)
 public sealed class ResolveTicketCommandHandler(
     ITicketRepository repository,
     ICurrentUserContext currentUser,
-    IAuditWriter auditWriter)
+    IAuditWriter auditWriter,
+    SlaEvaluator slaEvaluator)
 {
     private const int ResolutionSummaryMaxLength = 2000;
     private const int ResolutionCodeMaxLength = 100;
@@ -743,8 +766,8 @@ public sealed class ResolveTicketCommandHandler(
 
         var actorUserId = currentUser.UserId ?? throw new ValidationException("userId", "Authenticated user context is required.");
         var previousStatus = ticket.Status;
-        var previousSlaState = ticket.SlaState;
         var now = DateTime.UtcNow;
+        var previousSlaState = GetFinalizableSlaState(ticket, now, slaEvaluator);
 
         ticket.Status = TicketStatus.Resolved;
         ticket.ResolvedAt = now;
@@ -756,6 +779,7 @@ public sealed class ResolveTicketCommandHandler(
             ticket.SlaStateRecord.State = SlaState.Completed.ToString();
             ticket.SlaStateRecord.FinalState = previousSlaState.ToString();
             ticket.SlaStateRecord.CompletedAt = now;
+            ticket.SlaStateRecord.LastEvaluatedAt = now;
         }
 
         if (ticket.IsEscalated)
@@ -838,6 +862,28 @@ public sealed class ResolveTicketCommandHandler(
         if (failures.Count > 0) throw new ValidationException(failures);
         return (resolutionSummary!, string.IsNullOrWhiteSpace(resolutionCode) ? null : resolutionCode);
     }
+
+    private static SlaState GetFinalizableSlaState(Ticket ticket, DateTime evaluatedAt, SlaEvaluator slaEvaluator)
+    {
+        if (ticket.SlaStateRecord is null)
+            return ticket.SlaState;
+
+        var evaluatedState = slaEvaluator.Evaluate(ticket.SlaStateRecord, evaluatedAt);
+        if (!Enum.TryParse<SlaState>(ticket.SlaStateRecord.State, ignoreCase: true, out var storedState))
+            storedState = ticket.SlaState;
+
+        return Severity(storedState) > Severity(evaluatedState)
+            ? storedState
+            : evaluatedState;
+    }
+
+    private static int Severity(SlaState state) => state switch
+    {
+        SlaState.Completed => 3,
+        SlaState.Breached => 2,
+        SlaState.AtRisk => 1,
+        _ => 0
+    };
 }
 
 public sealed class CloseTicketCommandHandler(
@@ -956,6 +1002,8 @@ internal static class TicketValidation
 
 internal static class TicketSlaConstants
 {
+    public const int DefaultAtRiskThresholdPercent = 80;
+
     public static TimeSpan GetSlaDuration(TicketPriority priority) => priority switch
     {
         TicketPriority.Critical => TimeSpan.FromHours(4),

@@ -13,6 +13,24 @@ export interface TicketListItem {
   assignedAgentName?: string | null;
 }
 
+export interface TicketListFilter {
+  status?: string | null;
+  priority?: string | null;
+  slaState?: string | null;
+  accountId?: string | null;
+  campaignId?: string | null;
+  assignedAgentUserId?: string | null;
+}
+
+export type TicketFilters = TicketListFilter;
+
+export interface SlaSummary {
+  withinSlaCount: number;
+  atRiskCount: number;
+  breachedCount: number;
+  completedCount: number;
+}
+
 export interface TicketDetail extends TicketListItem {
   customerId: string;
   accountId: string;

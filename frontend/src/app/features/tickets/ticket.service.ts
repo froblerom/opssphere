@@ -17,6 +17,8 @@ import {
   EscalationQueueItemDto,
   ResolveTicketRequest,
   ResolveTicketResponse,
+  SlaSummary,
+  TicketFilters,
   TicketCommentDto,
   TicketDetail,
   TicketListItem,
@@ -33,8 +35,12 @@ import {
 export class TicketService {
   private readonly apiClient = inject(ApiClientService);
 
-  getTickets() {
-    return this.apiClient.get<ApiResponse<TicketListItem[]>>('tickets').pipe(map((r) => r.data));
+  getTickets(filters: TicketFilters = {}) {
+    return this.apiClient.get<ApiResponse<TicketListItem[]>>(`tickets${this.buildTicketQuery(filters)}`).pipe(map((r) => r.data));
+  }
+
+  getSlaSummary() {
+    return this.apiClient.get<ApiResponse<SlaSummary>>('sla/summary').pipe(map((r) => r.data));
   }
 
   getTicket(id: string) {
@@ -131,5 +137,18 @@ export class TicketService {
     return this.apiClient
       .get<ApiResponse<TicketStatusHistoryItemDto[]>>(`tickets/${ticketId}/history`)
       .pipe(map((r) => r.data));
+  }
+
+  private buildTicketQuery(filters: TicketFilters) {
+    const params = new URLSearchParams();
+    if (filters.status) params.set('status', filters.status);
+    if (filters.priority) params.set('priority', filters.priority);
+    if (filters.slaState) params.set('slaState', filters.slaState);
+    if (filters.accountId) params.set('accountId', filters.accountId);
+    if (filters.campaignId) params.set('campaignId', filters.campaignId);
+    if (filters.assignedAgentUserId) params.set('assignedAgentUserId', filters.assignedAgentUserId);
+
+    const query = params.toString();
+    return query ? `?${query}` : '';
   }
 }

@@ -251,6 +251,29 @@ public sealed class SeedDataTests
     }
 
     [Fact]
+    public async Task SeedData_WhenApplied_ShouldCreatePriorityOnlySlaPolicies()
+    {
+        await using var database = await SeedDatabase.CreateAsync();
+
+        var policies = await database.Context.SlaPolicies
+            .OrderBy(policy => policy.Priority)
+            .ToListAsync();
+
+        Assert.Equal(4, policies.Count);
+        Assert.All(policies, policy =>
+        {
+            Assert.Null(policy.AccountId);
+            Assert.Null(policy.CampaignId);
+            Assert.True(policy.IsActive);
+            Assert.Equal(80, policy.AtRiskThresholdPercent);
+        });
+        Assert.Contains(policies, policy => policy.Priority == "Critical" && policy.TargetHours == 4);
+        Assert.Contains(policies, policy => policy.Priority == "High" && policy.TargetHours == 8);
+        Assert.Contains(policies, policy => policy.Priority == "Normal" && policy.TargetHours == 24);
+        Assert.Contains(policies, policy => policy.Priority == "Low" && policy.TargetHours == 48);
+    }
+
+    [Fact]
     public async Task SeedData_WhenAppliedTwice_ShouldNotCreateDuplicates()
     {
         await using var database = await SeedDatabase.CreateAsync();
@@ -265,6 +288,7 @@ public sealed class SeedDataTests
         Assert.Equal(4, await database.Context.Countries.CountAsync());
         Assert.Equal(4, await database.Context.Accounts.CountAsync());
         Assert.Equal(5, await database.Context.Campaigns.CountAsync());
+        Assert.Equal(4, await database.Context.SlaPolicies.CountAsync());
         Assert.Equal(4, await database.Context.UserScopes.CountAsync());
 
         var expectedRolePermissionCount = ExpectedRolePermissions.Sum(mapping => mapping.Value.Length);

@@ -7,13 +7,14 @@ import { AppPermissions } from '../../core/auth/auth-permissions';
 import { AuthService } from '../../core/auth/auth.service';
 import { SafeApiError } from '../../core/models/api-error.models';
 import { ApiErrorParserService } from '../../core/services/api-error-parser.service';
+import { SlaStateBadgeComponent } from '../../shared/components/sla-state-badge.component';
 import { TicketService } from './ticket.service';
 import { EligibleAgentDto, TicketCommentDto, TicketDetail, TicketStatusHistoryItemDto } from './ticket.models';
 
 @Component({
   selector: 'app-ticket-detail',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterModule, SlaStateBadgeComponent],
   template: `
     <div class="page-container">
       <div *ngIf="loading" class="loading">Loading...</div>
@@ -34,7 +35,7 @@ import { EligibleAgentDto, TicketCommentDto, TicketDetail, TicketStatusHistoryIt
           <dt>Priority</dt>
           <dd>{{ ticket.priority }}</dd>
           <dt>SLA State</dt>
-          <dd>{{ ticket.slaState }}</dd>
+          <dd><app-sla-state-badge [slaState]="ticket.slaState" /></dd>
           <dt>Customer</dt>
           <dd>{{ ticket.customerName }}</dd>
           <dt>Account</dt>
@@ -305,7 +306,8 @@ import { EligibleAgentDto, TicketCommentDto, TicketDetail, TicketStatusHistoryIt
 
       <a routerLink="/tickets">Back to list</a>
     </div>
-  `
+  `,
+  styles: []
 })
 export class TicketDetailComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);

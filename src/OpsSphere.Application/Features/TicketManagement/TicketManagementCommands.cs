@@ -1,3 +1,5 @@
+using OpsSphere.Domain.Enums;
+
 namespace OpsSphere.Application.Features.TicketManagement;
 
 public sealed record CreateTicketCommand(
@@ -11,7 +13,13 @@ public sealed record CreateTicketCommand(
 
 public sealed record GetTicketByIdQuery(Guid Id);
 
-public sealed record GetTicketsQuery;
+public sealed record GetTicketsQuery(
+    SlaState? SlaState,
+    TicketStatus? Status,
+    TicketPriority? Priority,
+    Guid? AccountId,
+    Guid? CampaignId,
+    Guid? AssignedAgentUserId);
 
 public sealed record AssignTicketCommand(
     Guid TicketId,
