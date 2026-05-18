@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using OpsSphere.Api.Common;
 using OpsSphere.Application.Features.TicketManagement;
 using OpsSphere.Domain.Authorization;
+using OpsSphere.Domain.Enums;
 
 namespace OpsSphere.Api.Controllers;
 
@@ -82,8 +83,18 @@ public sealed class TicketsController : ControllerBase
 
     [HttpGet("tickets")]
     [Authorize(Policy = Permissions.TicketsView)]
-    public async Task<IActionResult> GetTickets(CancellationToken cancellationToken) =>
-        Ok(new ApiResponse<IReadOnlyList<TicketListItemDto>>(await getTickets.HandleAsync(new GetTicketsQuery(), cancellationToken)));
+    public async Task<IActionResult> GetTickets(
+        [FromQuery] SlaState? slaState,
+        [FromQuery] TicketStatus? status,
+        [FromQuery] TicketPriority? priority,
+        [FromQuery] Guid? accountId,
+        [FromQuery] Guid? campaignId,
+        [FromQuery] Guid? assignedAgentUserId,
+        CancellationToken cancellationToken) =>
+        Ok(new ApiResponse<IReadOnlyList<TicketListItemDto>>(
+            await getTickets.HandleAsync(
+                new GetTicketsQuery(slaState, status, priority, accountId, campaignId, assignedAgentUserId),
+                cancellationToken)));
 
     [HttpGet("tickets/escalations")]
     [Authorize(Policy = Permissions.TicketsView)]

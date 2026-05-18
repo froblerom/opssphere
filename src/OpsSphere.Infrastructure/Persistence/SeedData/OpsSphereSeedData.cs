@@ -145,6 +145,14 @@ public static class OpsSphereSeedData
         new(SeedIds.Customers.AeroLinkCustomer1, "AEROLINK", "Rafael", "Mora", "r.mora@fictional.test", "+506-2222-3333", "AL-001")
     ];
 
+    public static readonly IReadOnlyList<SlaPolicySeed> SlaPolicies =
+    [
+        new(SeedIds.SlaPolicies.CriticalPriorityDefault, null, null, "Critical", 4, 80),
+        new(SeedIds.SlaPolicies.HighPriorityDefault, null, null, "High", 8, 80),
+        new(SeedIds.SlaPolicies.NormalPriorityDefault, null, null, "Normal", 24, 80),
+        new(SeedIds.SlaPolicies.LowPriorityDefault, null, null, "Low", 48, 80)
+    ];
+
     public static readonly IReadOnlyList<UserScopeSeed> UserScopes =
     [
         UserScopeSeed.ForRegion(SeedIds.UserScopes.ManagerLatam, "manager.latam@opssphere.local", "LATAM"),
@@ -161,6 +169,7 @@ public static class OpsSphereSeedData
     public sealed record CountrySeed(Guid Id, string Code, string Name, string RegionCode);
     public sealed record AccountSeed(Guid Id, string Code, string Name, string CountryCode, string Description);
     public sealed record CampaignSeed(Guid Id, string Code, string Name, string AccountCode, string CountryCode, string Description);
+    public sealed record SlaPolicySeed(Guid Id, string? AccountCode, string? CampaignCode, string Priority, int TargetHours, int AtRiskThresholdPercent);
     public sealed record UserScopeSeed(Guid Id, string UserEmail, string ScopeType, string? RegionCode, string? CountryCode, string? AccountCode, string? CampaignCode)
     {
         public static UserScopeSeed ForRegion(Guid id, string userEmail, string regionCode) =>

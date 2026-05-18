@@ -22,6 +22,7 @@ public sealed class OpsSphereDataSeeder
         await SeedRolePermissionsAsync(cancellationToken);
         await SeedOrganizationAsync(cancellationToken);
         await SeedCustomersAsync(cancellationToken);
+        await SeedSlaPoliciesAsync(cancellationToken);
         await SeedUsersAsync(cancellationToken);
         await SeedUserRolesAsync(cancellationToken);
         await SeedUserScopesAsync(cancellationToken);
@@ -274,6 +275,46 @@ public sealed class OpsSphereDataSeeder
                 IsDeleted = false,
                 CreatedAt = DateTime.UtcNow
             });
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task SeedSlaPoliciesAsync(CancellationToken cancellationToken)
+    {
+        var accounts = await LoadAccountsByCodeAsync(cancellationToken);
+        var campaigns = await LoadCampaignsByCodeAsync(cancellationToken);
+
+        foreach (var policySeed in OpsSphereSeedData.SlaPolicies)
+        {
+            var accountId = policySeed.AccountCode is null ? null : (Guid?)accounts[policySeed.AccountCode].Id;
+            var campaignId = policySeed.CampaignCode is null ? null : (Guid?)campaigns[policySeed.CampaignCode].Id;
+
+            var existingPolicy = await dbContext.SlaPolicies.FirstOrDefaultAsync(
+                policy =>
+                    policy.AccountId == accountId &&
+                    policy.CampaignId == campaignId &&
+                    policy.Priority == policySeed.Priority,
+                cancellationToken);
+
+            if (existingPolicy is null)
+            {
+                dbContext.SlaPolicies.Add(new SlaPolicy
+                {
+                    Id = policySeed.Id,
+                    AccountId = accountId,
+                    CampaignId = campaignId,
+                    Priority = policySeed.Priority,
+                    TargetHours = policySeed.TargetHours,
+                    AtRiskThresholdPercent = policySeed.AtRiskThresholdPercent,
+                    IsActive = true
+                });
+                continue;
+            }
+
+            existingPolicy.TargetHours = policySeed.TargetHours;
+            existingPolicy.AtRiskThresholdPercent = policySeed.AtRiskThresholdPercent;
+            existingPolicy.IsActive = true;
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);

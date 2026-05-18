@@ -104,6 +104,14 @@ public static class SeedIds
         public static readonly Guid AeroLinkCustomer1 = Guid.Parse("a1b2c3d4-e5f6-4711-8004-000000000004");
     }
 
+    public static class SlaPolicies
+    {
+        public static readonly Guid CriticalPriorityDefault = Guid.Parse("d8d5f8b2-5d7f-4ca5-bf09-0e060a8afc01");
+        public static readonly Guid HighPriorityDefault = Guid.Parse("aaf223ad-9e58-4055-9513-178e29085210");
+        public static readonly Guid NormalPriorityDefault = Guid.Parse("38394626-fad4-4819-9bb6-72eb353fe7e6");
+        public static readonly Guid LowPriorityDefault = Guid.Parse("f58a9769-4706-4728-ad78-0d931d2d472a");
+    }
+
     public static class UserScopes
     {
         public static readonly Guid ManagerLatam = Guid.Parse("c616e064-8180-4aef-aa8b-cae17d68ef1d");

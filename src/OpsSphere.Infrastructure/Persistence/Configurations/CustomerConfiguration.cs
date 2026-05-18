@@ -24,7 +24,7 @@ internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.HasIndex(c => c.ExternalReference).HasDatabaseName("IX_Customers_ExternalReference");
         builder.HasIndex(c => c.IsActive).HasDatabaseName("IX_Customers_IsActive");
 
-        builder.HasOne(c => c.Account).WithMany().HasForeignKey(c => c.AccountId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(c => c.Account).WithMany(a => a.Customers).HasForeignKey(c => c.AccountId).OnDelete(DeleteBehavior.Restrict);
         builder.HasMany(c => c.Tickets).WithOne(t => t.Customer).HasForeignKey(t => t.CustomerId).OnDelete(DeleteBehavior.Restrict);
     }
 }

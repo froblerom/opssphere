@@ -3,8 +3,10 @@ using OpsSphere.Application.Features.Auth.GetCurrentUser;
 using OpsSphere.Application.Features.Auth.Login;
 using OpsSphere.Application.Features.CustomerManagement;
 using OpsSphere.Application.Features.OrganizationManagement;
+using OpsSphere.Application.Features.SlaManagement;
 using OpsSphere.Application.Features.TicketManagement;
 using OpsSphere.Application.Features.UserManagement;
+using OpsSphere.Domain.Services;
 
 namespace OpsSphere.Application;
 
@@ -64,6 +66,8 @@ public static class DependencyInjection
         services.AddScoped<ResolveTicketCommandHandler>();
         services.AddScoped<CloseTicketCommandHandler>();
         services.AddScoped<GetTicketStatusHistoryQueryHandler>();
+        services.AddScoped<GetSlaSummaryQueryHandler>();
+        services.AddSingleton<SlaEvaluator>();
 
         return services;
     }

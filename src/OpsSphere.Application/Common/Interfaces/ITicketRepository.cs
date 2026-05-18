@@ -26,6 +26,6 @@ public interface ITicketRepository
     Task<IReadOnlyList<CustomerTicketSummaryDto>> GetCustomerTicketHistoryAsync(Guid customerId, CancellationToken cancellationToken);
     Task SaveChangesAsync(CancellationToken cancellationToken);
     Task<TicketDetailDto?> GetTicketByIdAsync(Guid id, CancellationToken cancellationToken);
-    Task<IReadOnlyList<TicketListItemDto>> GetTicketsAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<TicketListItemDto>> GetTicketsAsync(GetTicketsQuery query, CancellationToken cancellationToken);
     Task<int> GetLatestSequenceForDatePrefixAsync(string datePrefix, CancellationToken cancellationToken);
 }

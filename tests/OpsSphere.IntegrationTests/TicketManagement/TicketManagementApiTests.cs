@@ -327,6 +327,75 @@ public sealed class TicketManagementApiTests
 
         Assert.NotNull(slaRow);
         Assert.Equal("WithinSla", slaRow.State);
+        Assert.Equal(80, slaRow.AtRiskThresholdPercent);
+        Assert.NotNull(slaRow.SlaPolicyId);
+    }
+
+    [Fact]
+    public async Task GetTickets_SlaStateFilter_UsesRequestTimeEvaluation()
+    {
+        await using var factory = await TicketApiFactory.CreateAsync();
+        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+
+        var created = await CreateTicketAsync(agent,
+            customerId: SeedIds.Customers.NovaBankCustomer1,
+            accountId: SeedIds.Accounts.NovaBank,
+            campaignId: SeedIds.Campaigns.NovaBankCreditCard,
+            category: "Support",
+            priority: "High",
+            subject: "SLA filter test",
+            description: "Verifying request-time SLA evaluation");
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
+            var slaRow = await db.TicketSlaStates.SingleAsync(s => s.TicketId == created.Id);
+            var startedAt = DateTime.UtcNow.AddHours(-10);
+            slaRow.StartedAt = startedAt;
+            slaRow.DueAt = startedAt.AddHours(12);
+            slaRow.AtRiskThresholdPercent = 80;
+            slaRow.State = "WithinSla";
+            await db.SaveChangesAsync();
+        }
+
+        var listResponse = await agent.GetAsync("/api/tickets?slaState=AtRisk");
+        Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
+
+        var tickets = await ReadDataAsync<IReadOnlyList<TicketListItemDto>>(listResponse);
+        var ticket = Assert.Single(tickets, t => t.Id == created.Id);
+        Assert.Equal("AtRisk", ticket.SlaState);
+    }
+
+    [Fact]
+    public async Task GetSlaSummary_ReturnsScopedEvaluatedCounts()
+    {
+        await using var factory = await TicketApiFactory.CreateAsync();
+        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+
+        var created = await CreateTicketAsync(agent,
+            customerId: SeedIds.Customers.NovaBankCustomer1,
+            accountId: SeedIds.Accounts.NovaBank,
+            campaignId: SeedIds.Campaigns.NovaBankCreditCard,
+            category: "Support",
+            priority: "Critical",
+            subject: "SLA summary test",
+            description: "Verifying scoped summary");
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
+            var slaRow = await db.TicketSlaStates.SingleAsync(s => s.TicketId == created.Id);
+            slaRow.StartedAt = DateTime.UtcNow.AddHours(-6);
+            slaRow.DueAt = DateTime.UtcNow.AddHours(-2);
+            slaRow.State = "WithinSla";
+            await db.SaveChangesAsync();
+        }
+
+        var response = await agent.GetAsync("/api/sla/summary");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var summary = await ReadDataAsync<SlaSummaryDto>(response);
+        Assert.Equal(1, summary.BreachedCount);
     }
 
     [Fact]
@@ -586,6 +655,12 @@ public sealed class TicketManagementApiTests
         string SlaState,
         bool IsEscalated,
         DateTime CreatedAt);
+
+    private sealed record SlaSummaryDto(
+        int WithinSlaCount,
+        int AtRiskCount,
+        int BreachedCount,
+        int CompletedCount);
 
     // ─── Factory ──────────────────────────────────────────────────────────────
 

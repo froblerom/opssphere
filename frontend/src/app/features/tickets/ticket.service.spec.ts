@@ -3,7 +3,7 @@ import { of } from 'rxjs';
 
 import { ApiClientService } from '../../core/services/api-client.service';
 import { TicketService } from './ticket.service';
-import { CreateTicketRequest, EligibleAgentDto, EscalationQueueItemDto, TicketCommentDto, TicketListItem } from './ticket.models';
+import { CreateTicketRequest, EligibleAgentDto, EscalationQueueItemDto, SlaSummary, TicketCommentDto, TicketListItem } from './ticket.models';
 
 describe('TicketService', () => {
   let service: TicketService;
@@ -42,6 +42,38 @@ describe('TicketService', () => {
     service.getTickets().subscribe((result) => {
       expect(result).toEqual(tickets);
       expect(apiClient.get).toHaveBeenCalledOnceWith('tickets');
+      done();
+    });
+  });
+
+  it('getTickets sends filter query params when provided', (done) => {
+    apiClient.get.and.returnValue(of({ data: [] }));
+
+    service.getTickets({
+      priority: 'High',
+      slaState: 'AtRisk',
+      accountId: 'account-1',
+      campaignId: 'campaign-1',
+      assignedAgentUserId: 'agent-1'
+    }).subscribe((result) => {
+      expect(result).toEqual([]);
+      expect(apiClient.get).toHaveBeenCalledOnceWith('tickets?priority=High&slaState=AtRisk&accountId=account-1&campaignId=campaign-1&assignedAgentUserId=agent-1');
+      done();
+    });
+  });
+
+  it('getSlaSummary calls correct URL and unwraps data', (done) => {
+    const summary: SlaSummary = {
+      withinSlaCount: 2,
+      atRiskCount: 1,
+      breachedCount: 1,
+      completedCount: 1
+    };
+    apiClient.get.and.returnValue(of({ data: summary }));
+
+    service.getSlaSummary().subscribe((result) => {
+      expect(result).toEqual(summary);
+      expect(apiClient.get).toHaveBeenCalledOnceWith('sla/summary');
       done();
     });
   });
