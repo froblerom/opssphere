@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using OpsSphere.Application.Common.Interfaces;
+using OpsSphere.Infrastructure.AuditManagement;
 using OpsSphere.Infrastructure.Auditing;
 using OpsSphere.Domain.Entities;
 using OpsSphere.Infrastructure.Authentication;
@@ -53,6 +54,7 @@ public static class DependencyInjection
         services.AddScoped<ISlaRepository, SlaRepository>();
         services.AddScoped<ISlaSummaryRepository, SlaSummaryRepository>();
         services.AddScoped<ITicketNumberGenerator, SequentialTicketNumberGenerator>();
+        services.AddScoped<IAuditRepository, AuditRepository>();
         services.AddScoped<IAuditWriter, AuditWriter>();
         services.AddScoped<OpsSphereDataSeeder>();
 

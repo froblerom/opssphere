@@ -7,6 +7,8 @@ import { AppPermissions } from '../../core/auth/auth-permissions';
 import { AuthService } from '../../core/auth/auth.service';
 import { SafeApiError } from '../../core/models/api-error.models';
 import { ApiErrorParserService } from '../../core/services/api-error-parser.service';
+import { AuditLogListItem } from '../audit/audit.models';
+import { AuditService } from '../audit/audit.service';
 import { SlaStateBadgeComponent } from '../../shared/components/sla-state-badge.component';
 import { TicketService } from './ticket.service';
 import { EligibleAgentDto, TicketCommentDto, TicketDetail, TicketStatusHistoryItemDto } from './ticket.models';
@@ -265,6 +267,32 @@ import { EligibleAgentDto, TicketCommentDto, TicketDetail, TicketStatusHistoryIt
           </ng-template>
         </section>
 
+        <section *ngIf="canShowAuditHistory" class="audit-section" aria-labelledby="audit-title">
+          <h2 id="audit-title">Audit History</h2>
+
+          <button type="button" class="btn btn-secondary" (click)="toggleAuditHistory()" [disabled]="auditHistoryLoading">
+            {{ auditHistoryExpanded ? 'Hide Audit History' : 'Show Audit History' }}
+          </button>
+
+          <div *ngIf="auditHistoryExpanded">
+            <div *ngIf="auditHistoryLoading" class="loading">Loading audit history...</div>
+            <div *ngIf="auditHistoryError" class="error">{{ auditHistoryError }}</div>
+
+            <div *ngIf="!auditHistoryLoading && auditHistory.length > 0; else noAuditHistory" class="history-list">
+              <article *ngFor="let item of auditHistory" class="history-item">
+                <div><strong>{{ item.action }}</strong></div>
+                <div>{{ item.actorDisplayName || item.actorUserId || 'System' }}</div>
+                <div>{{ item.createdAt | date:'medium' }}</div>
+                <div *ngIf="item.correlationId">Correlation: {{ item.correlationId }}</div>
+              </article>
+            </div>
+
+            <ng-template #noAuditHistory>
+              <p *ngIf="!auditHistoryLoading && !auditHistoryError">No audit history found.</p>
+            </ng-template>
+          </div>
+        </section>
+
         <section *ngIf="canShowComments" class="comments-section" aria-labelledby="comments-title">
           <h2 id="comments-title">Internal Comments</h2>
 
@@ -313,6 +341,7 @@ export class TicketDetailComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly fb = inject(FormBuilder);
   private readonly ticketService = inject(TicketService);
+  private readonly auditService = inject(AuditService);
   private readonly authService = inject(AuthService);
   private readonly errorParser = inject(ApiErrorParserService);
 
@@ -323,6 +352,7 @@ export class TicketDetailComponent implements OnInit {
   eligibleAgents: EligibleAgentDto[] = [];
   comments: TicketCommentDto[] = [];
   statusHistory: TicketStatusHistoryItemDto[] = [];
+  auditHistory: AuditLogListItem[] = [];
   loading = true;
   assignmentLoading = false;
   assignmentSubmitting = false;
@@ -332,6 +362,9 @@ export class TicketDetailComponent implements OnInit {
   escalationSubmitting = false;
   resolveSubmitting = false;
   closeSubmitting = false;
+  auditHistoryExpanded = false;
+  auditHistoryLoaded = false;
+  auditHistoryLoading = false;
   error: string | null = null;
   assignmentError: string | null = null;
   assignmentLoadError: string | null = null;
@@ -342,6 +375,7 @@ export class TicketDetailComponent implements OnInit {
   resolveError: string | null = null;
   closeError: string | null = null;
   historyError: string | null = null;
+  auditHistoryError: string | null = null;
   assignmentFieldErrors: Record<string, string> = {};
   statusFieldErrors: Record<string, string> = {};
   priorityFieldErrors: Record<string, string> = {};
@@ -408,6 +442,10 @@ export class TicketDetailComponent implements OnInit {
 
   get canShowHistory() {
     return this.authService.hasPermission(AppPermissions.TicketsHistoryView);
+  }
+
+  get canShowAuditHistory() {
+    return this.authService.hasPermission(AppPermissions.AuditView);
   }
 
   get canShowComments() {
@@ -729,6 +767,28 @@ export class TicketDetailComponent implements OnInit {
         const parsed = this.errorParser.parse(err);
         this.closeError = parsed.message;
         this.closeSubmitting = false;
+      }
+    });
+  }
+
+  toggleAuditHistory() {
+    this.auditHistoryExpanded = !this.auditHistoryExpanded;
+    if (!this.auditHistoryExpanded || this.auditHistoryLoaded || this.auditHistoryLoading || !this.ticket) return;
+
+    this.auditHistoryLoading = true;
+    this.auditHistoryError = null;
+
+    this.auditService.getEntityAuditHistory('Ticket', this.ticket.id).subscribe({
+      next: (result) => {
+        this.auditHistory = result.items;
+        this.auditHistoryLoaded = true;
+        this.auditHistoryLoading = false;
+      },
+      error: (err) => {
+        const parsed: SafeApiError = this.errorParser.parse(err);
+        this.auditHistoryError = parsed.message;
+        this.auditHistory = [];
+        this.auditHistoryLoading = false;
       }
     });
   }

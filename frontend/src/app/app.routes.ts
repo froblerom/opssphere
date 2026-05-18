@@ -198,6 +198,14 @@ export const routes: Routes = [
     loadComponent: () => import('./features/tickets/ticket-detail.component').then((m) => m.TicketDetailComponent)
   },
   {
+    path: 'audit',
+    canActivate: [permissionGuard],
+    data: {
+      permissions: [AppPermissions.AuditView]
+    },
+    loadComponent: () => import('./features/audit/audit-list.component').then((m) => m.AuditListComponent)
+  },
+  {
     path: 'users',
     redirectTo: 'admin/users'
   },

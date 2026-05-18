@@ -1,16 +1,18 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { defer, of, throwError } from 'rxjs';
 
 import { AuthService } from '../../core/auth/auth.service';
 import { AppPermissions } from '../../core/auth/auth-permissions';
 import { ApiErrorParserService } from '../../core/services/api-error-parser.service';
+import { AuditService } from '../audit/audit.service';
 import { TicketDetailComponent } from './ticket-detail.component';
 import { TicketCommentDto, TicketDetail } from './ticket.models';
 import { TicketService } from './ticket.service';
 
 describe('TicketDetailComponent', () => {
   let ticketService: jasmine.SpyObj<Pick<TicketService, 'getTicket' | 'getEligibleAgents' | 'assignTicket' | 'updateTicketStatus' | 'updateTicketPriority' | 'getComments' | 'addComment' | 'escalateTicket' | 'resolveTicket' | 'closeTicket' | 'getTicketHistory'>>;
+  let auditService: jasmine.SpyObj<Pick<AuditService, 'getEntityAuditHistory'>>;
   let authService: jasmine.SpyObj<Pick<AuthService, 'hasPermission'>>;
   let errorParser: jasmine.SpyObj<Pick<ApiErrorParserService, 'parse'>>;
   let fixture: ComponentFixture<TicketDetailComponent>;
@@ -20,6 +22,7 @@ describe('TicketDetailComponent', () => {
       'TicketService',
       ['getTicket', 'getEligibleAgents', 'assignTicket', 'updateTicketStatus', 'updateTicketPriority', 'getComments', 'addComment', 'escalateTicket', 'resolveTicket', 'closeTicket', 'getTicketHistory']
     );
+    auditService = jasmine.createSpyObj<Pick<AuditService, 'getEntityAuditHistory'>>('AuditService', ['getEntityAuditHistory']);
     authService = jasmine.createSpyObj<Pick<AuthService, 'hasPermission'>>('AuthService', ['hasPermission']);
     errorParser = jasmine.createSpyObj<Pick<ApiErrorParserService, 'parse'>>('ApiErrorParserService', ['parse']);
 
@@ -33,6 +36,13 @@ describe('TicketDetailComponent', () => {
     ]));
     ticketService.getComments.and.returnValue(of([]));
     ticketService.getTicketHistory.and.returnValue(of([]));
+    auditService.getEntityAuditHistory.and.returnValue(of({
+      items: [],
+      page: 1,
+      pageSize: 25,
+      totalCount: 0,
+      totalPages: 0
+    }));
     errorParser.parse.and.returnValue({ code: 'bad_request', message: 'Request failed.', details: [] });
 
     TestBed.configureTestingModule({
@@ -48,6 +58,7 @@ describe('TicketDetailComponent', () => {
           }
         },
         { provide: TicketService, useValue: ticketService },
+        { provide: AuditService, useValue: auditService },
         { provide: AuthService, useValue: authService },
         { provide: ApiErrorParserService, useValue: errorParser }
       ]
@@ -146,6 +157,46 @@ describe('TicketDetailComponent', () => {
     expect(text).toContain('Nova Agent');
     expect(text).toContain('Checked the billing timeline.');
     expect(ticketService.getComments).toHaveBeenCalledOnceWith('ticket-1');
+  });
+
+  it('lazy-loads audit history when AuditView permission is present', async () => {
+    authService.hasPermission.and.callFake((permission) => permission === AppPermissions.AuditView);
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Open' })));
+    auditService.getEntityAuditHistory.and.returnValue(defer(() => Promise.resolve({
+      items: [
+        {
+          id: 'audit-1',
+          actorUserId: 'user-1',
+          actorDisplayName: 'Nova Supervisor',
+          action: 'TicketCreated',
+          entityType: 'Ticket',
+          entityId: 'ticket-1',
+          createdAt: '2026-05-18T00:00:00Z',
+          correlationId: 'corr-1'
+        }
+      ],
+      page: 1,
+      pageSize: 25,
+      totalCount: 1,
+      totalPages: 1
+    })));
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    expect(auditService.getEntityAuditHistory).not.toHaveBeenCalled();
+
+    fixture.componentInstance.toggleAuditHistory();
+    await fixture.whenStable();
+
+    expect(auditService.getEntityAuditHistory).toHaveBeenCalledOnceWith('Ticket', 'ticket-1');
+    expect(fixture.componentInstance.auditHistoryExpanded).toBeTrue();
+    expect(fixture.componentInstance.auditHistory).toEqual([
+      jasmine.objectContaining({
+        action: 'TicketCreated',
+        actorDisplayName: 'Nova Supervisor'
+      })
+    ]);
   });
 
   it('shows add-comment form for TicketsComment and non-Closed ticket', () => {

@@ -20,6 +20,7 @@ internal sealed class AuditLogConfiguration : IEntityTypeConfiguration<AuditLog>
         builder.HasIndex(a => a.ActorUserId).HasDatabaseName("IX_AuditLogs_ActorUserId");
         builder.HasIndex(a => a.Action).HasDatabaseName("IX_AuditLogs_Action");
         builder.HasIndex(a => new { a.EntityType, a.EntityId }).HasDatabaseName("IX_AuditLogs_EntityType_EntityId");
+        builder.HasIndex(a => new { a.EntityType, a.EntityId, a.CreatedAt }).HasDatabaseName("IX_AuditLogs_EntityType_EntityId_CreatedAt");
         builder.HasIndex(a => a.CreatedAt).HasDatabaseName("IX_AuditLogs_CreatedAt");
         builder.HasIndex(a => a.CorrelationId).HasDatabaseName("IX_AuditLogs_CorrelationId");
 
