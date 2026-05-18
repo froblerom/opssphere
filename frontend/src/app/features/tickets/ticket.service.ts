@@ -11,6 +11,9 @@ import {
   CreateTicketRequest,
   CreateTicketResponse,
   EligibleAgentDto,
+  EscalateTicketRequest,
+  EscalateTicketResponse,
+  EscalationQueueItemDto,
   TicketCommentDto,
   TicketDetail,
   TicketListItem,
@@ -54,6 +57,20 @@ export class TicketService {
     return this.apiClient
       .post<AddCommentRequest, ApiResponse<AddCommentResponse>>(`tickets/${ticketId}/comments`, request)
       .pipe(map((r) => r.data));
+  }
+
+  escalateTicket(ticketId: string, escalationReason: string) {
+    const request: EscalateTicketRequest = {
+      escalationReason: escalationReason.trim()
+    };
+
+    return this.apiClient
+      .post<EscalateTicketRequest, ApiResponse<EscalateTicketResponse>>(`tickets/${ticketId}/escalate`, request)
+      .pipe(map((r) => r.data));
+  }
+
+  getEscalationQueue() {
+    return this.apiClient.get<ApiResponse<EscalationQueueItemDto[]>>('tickets/escalations').pipe(map((r) => r.data));
   }
 
   assignTicket(ticketId: string, targetAgentUserId: string, reassignmentReason?: string | null) {

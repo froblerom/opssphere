@@ -114,3 +114,32 @@ export interface AddCommentResponse {
   createdAt: string;
   message: string;
 }
+
+export interface EscalateTicketRequest {
+  escalationReason: string;
+}
+
+export interface EscalateTicketResponse {
+  ticketId: string;
+  ticketNumber: string;
+  escalationId: string;
+  previousStatus: string;
+  newStatus: string;
+  message: string;
+}
+
+export interface EscalationQueueItemDto {
+  escalationId: string;
+  ticketId: string;
+  ticketNumber: string;
+  customerName: string;
+  accountName: string;
+  campaignName: string;
+  priority: string;
+  status: string;
+  slaState: string;
+  escalatedAt: string;
+  escalatedByUserId: string;
+  escalatedByName: string;
+  escalationReason: string;
+}

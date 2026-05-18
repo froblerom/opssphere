@@ -15,6 +15,9 @@ public interface ITicketRepository
     Task AddStatusHistoryAsync(TicketStatusHistory statusHistory, CancellationToken cancellationToken);
     Task AddCommentAsync(TicketComment comment, CancellationToken cancellationToken);
     Task<IReadOnlyList<TicketCommentDto>> GetCommentsAsync(Guid ticketId, CancellationToken cancellationToken);
+    Task AddEscalationAsync(TicketEscalation escalation, CancellationToken cancellationToken);
+    Task<bool> HasActiveEscalationAsync(Guid ticketId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<EscalationQueueItemDto>> GetEscalationQueueAsync(CancellationToken cancellationToken);
     Task SaveChangesAsync(CancellationToken cancellationToken);
     Task<TicketDetailDto?> GetTicketByIdAsync(Guid id, CancellationToken cancellationToken);
     Task<IReadOnlyList<TicketListItemDto>> GetTicketsAsync(CancellationToken cancellationToken);

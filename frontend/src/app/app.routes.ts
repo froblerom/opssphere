@@ -182,6 +182,14 @@ export const routes: Routes = [
     loadComponent: () => import('./features/tickets/ticket-create.component').then((m) => m.TicketCreateComponent)
   },
   {
+    path: 'tickets/escalations',
+    canActivate: [permissionGuard],
+    data: {
+      permissions: [AppPermissions.TicketsView]
+    },
+    loadComponent: () => import('./features/tickets/ticket-escalation-queue.component').then((m) => m.TicketEscalationQueueComponent)
+  },
+  {
     path: 'tickets/:id',
     canActivate: [permissionGuard],
     data: {

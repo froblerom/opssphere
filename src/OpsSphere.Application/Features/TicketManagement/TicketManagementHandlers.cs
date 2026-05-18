@@ -583,6 +583,137 @@ public sealed class GetTicketCommentsQueryHandler(ITicketRepository repository)
     }
 }
 
+public sealed class EscalateTicketCommandHandler(
+    ITicketRepository repository,
+    ICurrentUserContext currentUser,
+    IAuditWriter auditWriter)
+{
+    private const int EscalationReasonMaxLength = 1000;
+
+    public async Task<EscalateTicketResponse> HandleAsync(EscalateTicketCommand command, CancellationToken cancellationToken)
+    {
+        var reason = Validate(command);
+
+        var ticket = await repository.GetTicketForAssignmentAsync(command.TicketId, cancellationToken)
+            ?? throw new NotFoundException("Ticket", command.TicketId);
+
+        EnsureApplicationStatusPolicy(ticket);
+        if (ticket.IsEscalated)
+            throw new BusinessRuleException("Ticket is already escalated.");
+
+        if (await repository.HasActiveEscalationAsync(ticket.Id, cancellationToken))
+            throw new BusinessRuleException("Ticket already has an active escalation.");
+
+        EnsureTicketCanBeEscalated(ticket.Status, reason);
+        var normalizedReason = TicketWorkflowRules.NormalizeEscalationReason(reason);
+        var actorUserId = currentUser.UserId ?? throw new ValidationException("userId", "Authenticated user context is required.");
+        var previousStatus = ticket.Status;
+        var now = DateTime.UtcNow;
+
+        ticket.Status = TicketStatus.Escalated;
+        ticket.IsEscalated = true;
+        ticket.UpdatedAt = now;
+
+        var escalation = new TicketEscalation
+        {
+            Id = Guid.NewGuid(),
+            TicketId = ticket.Id,
+            EscalatedByUserId = actorUserId,
+            EscalationReason = normalizedReason,
+            ReviewedByUserId = null,
+            ReviewNotes = null,
+            ResolvedAt = null,
+            IsActive = true,
+            CreatedAt = now
+        };
+
+        await repository.AddStatusHistoryAsync(new TicketStatusHistory
+        {
+            Id = Guid.NewGuid(),
+            TicketId = ticket.Id,
+            PreviousStatus = previousStatus.ToString(),
+            NewStatus = TicketStatus.Escalated.ToString(),
+            ChangedByUserId = actorUserId,
+            ChangeReason = "Ticket escalated",
+            CreatedAt = now
+        }, cancellationToken);
+
+        await repository.AddEscalationAsync(escalation, cancellationToken);
+
+        await auditWriter.WriteAsync(
+            "TicketEscalated",
+            "Ticket",
+            ticket.Id,
+            TicketAuditJson.Serialize(new
+            {
+                status = previousStatus.ToString()
+            }),
+            TicketAuditJson.Serialize(new
+            {
+                escalatedByUserId = actorUserId,
+                status = TicketStatus.Escalated.ToString()
+            }),
+            cancellationToken);
+
+        await repository.SaveChangesAsync(cancellationToken);
+
+        return new EscalateTicketResponse(
+            ticket.Id,
+            ticket.TicketNumber,
+            escalation.Id,
+            previousStatus.ToString(),
+            TicketStatus.Escalated.ToString(),
+            "Ticket escalated successfully.");
+    }
+
+    private static string Validate(EscalateTicketCommand command)
+    {
+        var failures = new List<ValidationFailure>();
+        if (command.TicketId == Guid.Empty) failures.Add(new ValidationFailure("ticketId", "Ticket is required."));
+
+        var reason = command.EscalationReason?.Trim();
+        if (string.IsNullOrWhiteSpace(reason))
+            failures.Add(new ValidationFailure("escalationReason", "Escalation reason is required."));
+        else if (reason.Length > EscalationReasonMaxLength)
+            failures.Add(new ValidationFailure("escalationReason", $"Escalation reason must be {EscalationReasonMaxLength} characters or fewer."));
+
+        if (failures.Count > 0) throw new ValidationException(failures);
+        return reason!;
+    }
+
+    private static void EnsureApplicationStatusPolicy(Ticket ticket)
+    {
+        if (ticket.Status == TicketStatus.Escalated)
+            throw new BusinessRuleException("Ticket is already escalated.");
+
+        if (ticket.Status == TicketStatus.Resolved)
+            throw new BusinessRuleException("Resolved tickets cannot be escalated.");
+
+        if (ticket.Status == TicketStatus.Closed)
+            throw new BusinessRuleException("Closed tickets cannot be modified.");
+    }
+
+    private static void EnsureTicketCanBeEscalated(TicketStatus status, string reason)
+    {
+        try
+        {
+            TicketWorkflowRules.EnsureCanEscalate(status, reason);
+        }
+        catch (TicketDomainException ex)
+        {
+            throw new BusinessRuleException(ex.Message);
+        }
+    }
+}
+
+public sealed class GetEscalationQueueQueryHandler(ITicketRepository repository)
+{
+    public Task<IReadOnlyList<EscalationQueueItemDto>> HandleAsync(
+        GetEscalationQueueQuery query,
+        CancellationToken cancellationToken) =>
+        repository.GetEscalationQueueAsync(cancellationToken);
+}
+
 internal static class TicketValidation
 {
     public static (string Category, string Subject, string Description, TicketPriority Priority) Validate(
