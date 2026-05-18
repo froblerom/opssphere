@@ -5,6 +5,7 @@ using OpsSphere.Application.Common.Interfaces;
 using OpsSphere.Application.Features.TicketManagement;
 using OpsSphere.Domain.Authorization;
 using OpsSphere.Domain.Entities;
+using OpsSphere.Domain.Enums;
 using OpsSphere.Infrastructure.Authorization;
 using OpsSphere.Infrastructure.Persistence;
 
@@ -151,6 +152,52 @@ internal sealed class TicketRepository : ITicketRepository
                 c.Body,
                 c.CreatedAt))
             .ToArrayAsync(cancellationToken);
+
+    public Task AddEscalationAsync(TicketEscalation escalation, CancellationToken cancellationToken)
+    {
+        dbContext.TicketEscalations.Add(escalation);
+        return Task.CompletedTask;
+    }
+
+    public async Task<bool> HasActiveEscalationAsync(Guid ticketId, CancellationToken cancellationToken) =>
+        await dbContext.TicketEscalations
+            .AsNoTracking()
+            .AnyAsync(e => e.TicketId == ticketId && e.IsActive, cancellationToken);
+
+    public async Task<IReadOnlyList<EscalationQueueItemDto>> GetEscalationQueueAsync(CancellationToken cancellationToken)
+    {
+        var scopedTickets = ApplyScope(
+            await GetProfileAsync(cancellationToken),
+            dbContext.Tickets
+                .AsNoTracking()
+                .Where(t => !t.IsDeleted && t.Status == TicketStatus.Escalated && t.IsEscalated));
+
+        return await dbContext.TicketEscalations
+            .AsNoTracking()
+            .Where(e => e.IsActive)
+            .Join(
+                scopedTickets,
+                escalation => escalation.TicketId,
+                ticket => ticket.Id,
+                (escalation, ticket) => new { escalation, ticket })
+            .OrderByDescending(item => item.escalation.CreatedAt)
+            .ThenBy(item => item.escalation.Id)
+            .Select(item => new EscalationQueueItemDto(
+                item.escalation.Id,
+                item.ticket.Id,
+                item.ticket.TicketNumber,
+                item.ticket.Customer.FirstName + " " + item.ticket.Customer.LastName,
+                item.ticket.Account.Name,
+                item.ticket.Campaign.Name,
+                item.ticket.Priority.ToString(),
+                item.ticket.Status.ToString(),
+                item.ticket.SlaState.ToString(),
+                item.escalation.CreatedAt,
+                item.escalation.EscalatedByUserId,
+                item.escalation.EscalatedByUser.DisplayName,
+                item.escalation.EscalationReason))
+            .ToArrayAsync(cancellationToken);
+    }
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken)
     {

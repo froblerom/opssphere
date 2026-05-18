@@ -128,3 +128,29 @@ public sealed record TicketCommentDto(
     string AuthorDisplayName,
     string Body,
     DateTime CreatedAt);
+
+public sealed record EscalateTicketRequest(
+    string? EscalationReason);
+
+public sealed record EscalateTicketResponse(
+    Guid TicketId,
+    string TicketNumber,
+    Guid EscalationId,
+    string PreviousStatus,
+    string NewStatus,
+    string Message);
+
+public sealed record EscalationQueueItemDto(
+    Guid EscalationId,
+    Guid TicketId,
+    string TicketNumber,
+    string CustomerName,
+    string AccountName,
+    string CampaignName,
+    string Priority,
+    string Status,
+    string SlaState,
+    DateTime EscalatedAt,
+    Guid EscalatedByUserId,
+    string EscalatedByName,
+    string EscalationReason);

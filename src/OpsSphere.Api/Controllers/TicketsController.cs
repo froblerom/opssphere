@@ -21,6 +21,8 @@ public sealed class TicketsController : ControllerBase
     private readonly UpdateTicketPriorityCommandHandler updateTicketPriority;
     private readonly AddInternalCommentCommandHandler addInternalComment;
     private readonly GetTicketCommentsQueryHandler getTicketComments;
+    private readonly EscalateTicketCommandHandler escalateTicket;
+    private readonly GetEscalationQueueQueryHandler getEscalationQueue;
 
     public TicketsController(
         ILogger<TicketsController> logger,
@@ -32,7 +34,9 @@ public sealed class TicketsController : ControllerBase
         UpdateTicketStatusCommandHandler updateTicketStatus,
         UpdateTicketPriorityCommandHandler updateTicketPriority,
         AddInternalCommentCommandHandler addInternalComment,
-        GetTicketCommentsQueryHandler getTicketComments)
+        GetTicketCommentsQueryHandler getTicketComments,
+        EscalateTicketCommandHandler escalateTicket,
+        GetEscalationQueueQueryHandler getEscalationQueue)
     {
         this.logger = logger;
         this.createTicket = createTicket;
@@ -44,6 +48,8 @@ public sealed class TicketsController : ControllerBase
         this.updateTicketPriority = updateTicketPriority;
         this.addInternalComment = addInternalComment;
         this.getTicketComments = getTicketComments;
+        this.escalateTicket = escalateTicket;
+        this.getEscalationQueue = getEscalationQueue;
     }
 
     [HttpPost("tickets")]
@@ -69,6 +75,12 @@ public sealed class TicketsController : ControllerBase
     [Authorize(Policy = Permissions.TicketsView)]
     public async Task<IActionResult> GetTickets(CancellationToken cancellationToken) =>
         Ok(new ApiResponse<IReadOnlyList<TicketListItemDto>>(await getTickets.HandleAsync(new GetTicketsQuery(), cancellationToken)));
+
+    [HttpGet("tickets/escalations")]
+    [Authorize(Policy = Permissions.TicketsView)]
+    public async Task<IActionResult> GetEscalations(CancellationToken cancellationToken) =>
+        Ok(new ApiResponse<IReadOnlyList<EscalationQueueItemDto>>(
+            await getEscalationQueue.HandleAsync(new GetEscalationQueueQuery(), cancellationToken)));
 
     [HttpGet("tickets/{id:guid}")]
     [Authorize(Policy = Permissions.TicketsView)]
@@ -137,6 +149,19 @@ public sealed class TicketsController : ControllerBase
             "Internal comment added. TicketId={TicketId} TicketNumber={TicketNumber} CommentId={CommentId}",
             result.TicketId, result.TicketNumber, result.CommentId);
         return Ok(new ApiResponse<AddInternalCommentResponse>(result));
+    }
+
+    [HttpPost("tickets/{id:guid}/escalate")]
+    [Authorize(Policy = Permissions.TicketsEscalate)]
+    public async Task<IActionResult> EscalateTicket(Guid id, EscalateTicketRequest request, CancellationToken cancellationToken)
+    {
+        var result = await escalateTicket.HandleAsync(
+            new EscalateTicketCommand(id, request.EscalationReason),
+            cancellationToken);
+        logger.LogInformation(
+            "Ticket escalated. TicketId={TicketId} TicketNumber={TicketNumber} PreviousStatus={PreviousStatus}",
+            result.TicketId, result.TicketNumber, result.PreviousStatus);
+        return Ok(new ApiResponse<EscalateTicketResponse>(result));
     }
 
     public sealed record CreateTicketRequest(

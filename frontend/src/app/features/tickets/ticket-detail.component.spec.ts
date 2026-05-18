@@ -10,15 +10,15 @@ import { TicketCommentDto, TicketDetail } from './ticket.models';
 import { TicketService } from './ticket.service';
 
 describe('TicketDetailComponent', () => {
-  let ticketService: jasmine.SpyObj<Pick<TicketService, 'getTicket' | 'getEligibleAgents' | 'assignTicket' | 'updateTicketStatus' | 'updateTicketPriority' | 'getComments' | 'addComment'>>;
+  let ticketService: jasmine.SpyObj<Pick<TicketService, 'getTicket' | 'getEligibleAgents' | 'assignTicket' | 'updateTicketStatus' | 'updateTicketPriority' | 'getComments' | 'addComment' | 'escalateTicket'>>;
   let authService: jasmine.SpyObj<Pick<AuthService, 'hasPermission'>>;
   let errorParser: jasmine.SpyObj<Pick<ApiErrorParserService, 'parse'>>;
   let fixture: ComponentFixture<TicketDetailComponent>;
 
   beforeEach(() => {
-    ticketService = jasmine.createSpyObj<Pick<TicketService, 'getTicket' | 'getEligibleAgents' | 'assignTicket' | 'updateTicketStatus' | 'updateTicketPriority' | 'getComments' | 'addComment'>>(
+    ticketService = jasmine.createSpyObj<Pick<TicketService, 'getTicket' | 'getEligibleAgents' | 'assignTicket' | 'updateTicketStatus' | 'updateTicketPriority' | 'getComments' | 'addComment' | 'escalateTicket'>>(
       'TicketService',
-      ['getTicket', 'getEligibleAgents', 'assignTicket', 'updateTicketStatus', 'updateTicketPriority', 'getComments', 'addComment']
+      ['getTicket', 'getEligibleAgents', 'assignTicket', 'updateTicketStatus', 'updateTicketPriority', 'getComments', 'addComment', 'escalateTicket']
     );
     authService = jasmine.createSpyObj<Pick<AuthService, 'hasPermission'>>('AuthService', ['hasPermission']);
     errorParser = jasmine.createSpyObj<Pick<ApiErrorParserService, 'parse'>>('ApiErrorParserService', ['parse']);
@@ -272,6 +272,162 @@ describe('TicketDetailComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Comment body is required.');
+  });
+
+  it('shows escalation section for TicketsEscalate permission and allowed status', () => {
+    authService.hasPermission.and.callFake((permission) => permission === AppPermissions.TicketsEscalate);
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Open' })));
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Escalation');
+    expect(text).toContain('Escalate Ticket');
+  });
+
+  it('hides escalation section for Closed ticket', () => {
+    authService.hasPermission.and.callFake((permission) => permission === AppPermissions.TicketsEscalate);
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Closed' })));
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Escalate Ticket');
+  });
+
+  it('hides escalation section for Escalated ticket', () => {
+    authService.hasPermission.and.callFake((permission) => permission === AppPermissions.TicketsEscalate);
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Escalated', isEscalated: true })));
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Escalate Ticket');
+  });
+
+  it('hides escalation section for Resolved ticket', () => {
+    authService.hasPermission.and.callFake((permission) => permission === AppPermissions.TicketsEscalate);
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Resolved' })));
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Escalate Ticket');
+  });
+
+  it('hides escalation section without TicketsEscalate permission', () => {
+    authService.hasPermission.and.returnValue(false);
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Open' })));
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Escalate Ticket');
+  });
+
+  it('rejects empty escalation reason client-side', () => {
+    authService.hasPermission.and.callFake((permission) => permission === AppPermissions.TicketsEscalate);
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Open' })));
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance;
+    component.escalationForm.setValue({ escalationReason: '   ' });
+    component.escalateTicket();
+    fixture.detectChanges();
+
+    expect(ticketService.escalateTicket).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain('Escalation reason is required.');
+  });
+
+  it('submits escalation with trimmed reason', () => {
+    authService.hasPermission.and.callFake((permission) => permission === AppPermissions.TicketsEscalate);
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Open' })));
+    ticketService.escalateTicket.and.returnValue(of({
+      ticketId: 'ticket-1',
+      ticketNumber: 'TKT-0001',
+      escalationId: 'escalation-1',
+      previousStatus: 'Open',
+      newStatus: 'Escalated',
+      message: 'Ticket escalated successfully.'
+    }));
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance;
+    component.escalationForm.setValue({ escalationReason: '  Customer impact requires supervisor review.  ' });
+    component.escalateTicket();
+
+    expect(ticketService.escalateTicket).toHaveBeenCalledOnceWith('ticket-1', 'Customer impact requires supervisor review.');
+  });
+
+  it('updates ticket status and escalation flag after successful escalation', () => {
+    authService.hasPermission.and.callFake((permission) => permission === AppPermissions.TicketsEscalate);
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Open', isEscalated: false })));
+    ticketService.escalateTicket.and.returnValue(of({
+      ticketId: 'ticket-1',
+      ticketNumber: 'TKT-0001',
+      escalationId: 'escalation-1',
+      previousStatus: 'Open',
+      newStatus: 'Escalated',
+      message: 'Ticket escalated successfully.'
+    }));
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance;
+    component.escalationForm.setValue({ escalationReason: 'Customer impact requires supervisor review.' });
+    component.escalateTicket();
+
+    expect(component.ticket?.status).toBe('Escalated');
+    expect(component.ticket?.isEscalated).toBeTrue();
+    expect(component.canShowEscalation).toBeFalse();
+  });
+
+  it('displays escalation validation errors inline', () => {
+    authService.hasPermission.and.callFake((permission) => permission === AppPermissions.TicketsEscalate);
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Open' })));
+    ticketService.escalateTicket.and.returnValue(throwError(() => new Error('boom')));
+    errorParser.parse.and.returnValue({
+      code: 'validation_failed',
+      message: 'Validation failed.',
+      details: [{ field: 'escalationReason', message: 'Escalation reason is required.' }]
+    });
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance;
+    component.escalationForm.setValue({ escalationReason: 'Needs review.' });
+    component.escalateTicket();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Escalation reason is required.');
+  });
+
+  it('displays escalation business rule errors inline', () => {
+    authService.hasPermission.and.callFake((permission) => permission === AppPermissions.TicketsEscalate);
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Open' })));
+    ticketService.escalateTicket.and.returnValue(throwError(() => new Error('boom')));
+    errorParser.parse.and.returnValue({
+      code: 'business_rule_violation',
+      message: 'Ticket is already escalated.',
+      details: []
+    });
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance;
+    component.escalationForm.setValue({ escalationReason: 'Needs review.' });
+    component.escalateTicket();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Ticket is already escalated.');
   });
 
   it('shows status controls with TicketsUpdateStatus permission and non-Closed ticket', () => {

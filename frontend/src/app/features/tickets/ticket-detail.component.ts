@@ -134,6 +134,30 @@ import { EligibleAgentDto, TicketCommentDto, TicketDetail } from './ticket.model
           </form>
         </section>
 
+        <section *ngIf="canShowEscalation" class="escalation-section" aria-labelledby="escalation-title">
+          <h2 id="escalation-title">Escalation</h2>
+
+          <form [formGroup]="escalationForm" (ngSubmit)="escalateTicket()">
+            <div class="form-group">
+              <label for="escalationReason">Reason</label>
+              <textarea id="escalationReason" formControlName="escalationReason" rows="4" maxlength="1000" required></textarea>
+              <div *ngIf="escalationFieldError('escalationReason')" class="field-error">
+                {{ escalationFieldError('escalationReason') }}
+              </div>
+            </div>
+
+            <div *ngIf="escalationError" class="error">{{ escalationError }}</div>
+
+            <button
+              type="submit"
+              class="btn btn-primary"
+              [disabled]="escalationSubmitting"
+            >
+              {{ escalationSubmitting ? 'Escalating...' : 'Escalate Ticket' }}
+            </button>
+          </form>
+        </section>
+
         <section *ngIf="canShowAssignment" class="assignment-section" aria-labelledby="assignment-title">
           <h2 id="assignment-title">Assignment</h2>
 
@@ -236,16 +260,19 @@ export class TicketDetailComponent implements OnInit {
   statusSubmitting = false;
   prioritySubmitting = false;
   commentSubmitting = false;
+  escalationSubmitting = false;
   error: string | null = null;
   assignmentError: string | null = null;
   assignmentLoadError: string | null = null;
   statusError: string | null = null;
   priorityError: string | null = null;
   commentError: string | null = null;
+  escalationError: string | null = null;
   assignmentFieldErrors: Record<string, string> = {};
   statusFieldErrors: Record<string, string> = {};
   priorityFieldErrors: Record<string, string> = {};
   commentFieldErrors: Record<string, string> = {};
+  escalationFieldErrors: Record<string, string> = {};
 
   assignmentForm = this.fb.group({
     targetAgentUserId: ['', Validators.required],
@@ -266,6 +293,10 @@ export class TicketDetailComponent implements OnInit {
     body: ['', [Validators.required, Validators.maxLength(5000)]]
   });
 
+  escalationForm = this.fb.group({
+    escalationReason: ['', [Validators.required, Validators.maxLength(1000)]]
+  });
+
   get canShowAssignment() {
     return this.canAssignTickets && this.ticket?.status !== 'Closed';
   }
@@ -276,6 +307,13 @@ export class TicketDetailComponent implements OnInit {
 
   get canShowPriorityUpdate() {
     return this.canUpdateTicketPriority && this.ticket?.status !== 'Closed';
+  }
+
+  get canShowEscalation() {
+    return this.authService.hasPermission(AppPermissions.TicketsEscalate)
+      && this.ticket?.status !== 'Closed'
+      && this.ticket?.status !== 'Escalated'
+      && this.ticket?.status !== 'Resolved';
   }
 
   get canShowComments() {
@@ -332,6 +370,10 @@ export class TicketDetailComponent implements OnInit {
 
   commentFieldError(name: string): string | null {
     return this.commentFieldErrors[name] ?? null;
+  }
+
+  escalationFieldError(name: string): string | null {
+    return this.escalationFieldErrors[name] ?? null;
   }
 
   assignTicket() {
@@ -427,6 +469,47 @@ export class TicketDetailComponent implements OnInit {
         );
         this.priorityError = parsed.details.length === 0 ? parsed.message : null;
         this.prioritySubmitting = false;
+      }
+    });
+  }
+
+  escalateTicket() {
+    if (!this.ticket || this.escalationSubmitting) return;
+
+    this.escalationError = null;
+    this.escalationFieldErrors = {};
+
+    const escalationReason = (this.escalationForm.controls.escalationReason.value ?? '').trim();
+    if (!escalationReason) {
+      this.escalationFieldErrors = { escalationReason: 'Escalation reason is required.' };
+      return;
+    }
+
+    if (escalationReason.length > 1000) {
+      this.escalationFieldErrors = { escalationReason: 'Escalation reason must be 1000 characters or fewer.' };
+      return;
+    }
+
+    this.escalationSubmitting = true;
+
+    this.ticketService.escalateTicket(this.ticket.id, escalationReason).subscribe({
+      next: (response) => {
+        this.ticket = {
+          ...this.ticket!,
+          status: response.newStatus,
+          isEscalated: true
+        };
+        this.escalationForm.reset({ escalationReason: '' });
+        this.escalationError = null;
+        this.escalationFieldErrors = {};
+        this.escalationSubmitting = false;
+      },
+      error: (err) => {
+        const parsed: SafeApiError = this.errorParser.parse(err);
+        const fieldDetails = parsed.details.filter((d) => d.field);
+        this.escalationFieldErrors = Object.fromEntries(fieldDetails.map((d) => [d.field!, d.message]));
+        this.escalationError = fieldDetails.length === parsed.details.length && parsed.details.length > 0 ? null : parsed.message;
+        this.escalationSubmitting = false;
       }
     });
   }

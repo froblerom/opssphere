@@ -35,3 +35,9 @@ public sealed record AddInternalCommentCommand(
     string? Body);
 
 public sealed record GetTicketCommentsQuery(Guid TicketId);
+
+public sealed record EscalateTicketCommand(
+    Guid TicketId,
+    string? EscalationReason);
+
+public sealed record GetEscalationQueueQuery;

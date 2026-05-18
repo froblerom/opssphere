@@ -3,7 +3,7 @@ import { of } from 'rxjs';
 
 import { ApiClientService } from '../../core/services/api-client.service';
 import { TicketService } from './ticket.service';
-import { CreateTicketRequest, EligibleAgentDto, TicketCommentDto, TicketListItem } from './ticket.models';
+import { CreateTicketRequest, EligibleAgentDto, EscalationQueueItemDto, TicketCommentDto, TicketListItem } from './ticket.models';
 
 describe('TicketService', () => {
   let service: TicketService;
@@ -160,6 +160,53 @@ describe('TicketService', () => {
       expect(apiClient.post).toHaveBeenCalledOnceWith('tickets/ticket-1/comments', {
         body: 'Checked the billing timeline.'
       });
+      done();
+    });
+  });
+
+  it('escalateTicket calls correct URL with request and unwraps response', (done) => {
+    const response = {
+      ticketId: 'ticket-1',
+      ticketNumber: 'TKT-0001',
+      escalationId: 'escalation-1',
+      previousStatus: 'Open',
+      newStatus: 'Escalated',
+      message: 'Ticket escalated successfully.'
+    };
+    apiClient.post.and.returnValue(of({ data: response }));
+
+    service.escalateTicket('ticket-1', '  Customer impact requires supervisor review.  ').subscribe((result) => {
+      expect(result).toEqual(response);
+      expect(apiClient.post).toHaveBeenCalledOnceWith('tickets/ticket-1/escalate', {
+        escalationReason: 'Customer impact requires supervisor review.'
+      });
+      done();
+    });
+  });
+
+  it('getEscalationQueue calls correct URL and unwraps data', (done) => {
+    const escalations: EscalationQueueItemDto[] = [
+      {
+        escalationId: 'escalation-1',
+        ticketId: 'ticket-1',
+        ticketNumber: 'TKT-0001',
+        customerName: 'Jane Customer',
+        accountName: 'NovaBank',
+        campaignName: 'NovaBank Care',
+        priority: 'High',
+        status: 'Escalated',
+        slaState: 'AtRisk',
+        escalatedAt: '2026-05-18T00:00:00Z',
+        escalatedByUserId: 'supervisor-1',
+        escalatedByName: 'Nova Supervisor',
+        escalationReason: 'Customer impact requires supervisor review.'
+      }
+    ];
+    apiClient.get.and.returnValue(of({ data: escalations }));
+
+    service.getEscalationQueue().subscribe((result) => {
+      expect(result).toEqual(escalations);
+      expect(apiClient.get).toHaveBeenCalledOnceWith('tickets/escalations');
       done();
     });
   });
