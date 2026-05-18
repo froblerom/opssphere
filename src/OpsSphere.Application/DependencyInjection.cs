@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using OpsSphere.Application.Features.AuditManagement;
 using OpsSphere.Application.Features.Auth.GetCurrentUser;
 using OpsSphere.Application.Features.Auth.Login;
 using OpsSphere.Application.Features.CustomerManagement;
@@ -67,6 +68,9 @@ public static class DependencyInjection
         services.AddScoped<CloseTicketCommandHandler>();
         services.AddScoped<GetTicketStatusHistoryQueryHandler>();
         services.AddScoped<GetSlaSummaryQueryHandler>();
+        services.AddScoped<GetAuditLogsQueryHandler>();
+        services.AddScoped<GetAuditLogByIdQueryHandler>();
+        services.AddScoped<GetEntityAuditHistoryQueryHandler>();
         services.AddSingleton<SlaEvaluator>();
 
         return services;
