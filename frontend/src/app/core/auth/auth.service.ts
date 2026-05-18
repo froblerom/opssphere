@@ -1,4 +1,4 @@
-import { computed, inject, Injectable, signal } from '@angular/core';
+import { computed, effect, inject, Injectable, signal } from '@angular/core';
 import { map, tap } from 'rxjs';
 
 import { ApiClientService } from '../services/api-client.service';
@@ -7,7 +7,7 @@ import { TokenStorageService } from './token-storage.service';
 
 // SECURITY NOTE: Frontend visibility is UX only. Backend authorization is the source of truth.
 // hasRole/hasPermission helpers improve UX by hiding unavailable actions.
-// They are NOT security controls — backend enforces authorization on every request.
+// They are NOT security controls - backend enforces authorization on every request.
 
 @Injectable({
   providedIn: 'root'
@@ -15,11 +15,19 @@ import { TokenStorageService } from './token-storage.service';
 export class AuthService {
   private readonly apiClient = inject(ApiClientService);
   private readonly tokenStorage = inject(TokenStorageService);
-  private readonly currentToken = signal(this.tokenStorage.getUsableToken());
 
   readonly currentUser = signal<AuthUserSummary | null>(null);
   readonly currentProfile = signal<CurrentUserProfile | null>(null);
-  readonly isAuthenticated = computed(() => Boolean(this.currentToken()));
+  readonly isAuthenticated = computed(() => Boolean(this.tokenStorage.token()));
+
+  constructor() {
+    effect(() => {
+      if (!this.tokenStorage.token()) {
+        this.currentUser.set(null);
+        this.currentProfile.set(null);
+      }
+    });
+  }
 
   login(email: string, password: string) {
     const request: LoginRequest = { email, password };
@@ -28,7 +36,6 @@ export class AuthService {
       map((response) => response.data),
       tap((loginResponse) => {
         this.tokenStorage.setToken(loginResponse.accessToken);
-        this.currentToken.set(loginResponse.accessToken);
         this.currentUser.set(loginResponse.user);
       })
     );
@@ -51,13 +58,12 @@ export class AuthService {
 
   logout(): void {
     this.tokenStorage.clearToken();
-    this.currentToken.set(null);
     this.currentUser.set(null);
     this.currentProfile.set(null);
   }
 
   getAccessToken(): string | null {
-    const token = this.currentToken() ?? this.tokenStorage.getUsableToken();
+    const token = this.tokenStorage.getUsableToken();
     if (!token) {
       this.logout();
       return null;
@@ -66,24 +72,24 @@ export class AuthService {
     return token;
   }
 
-  // UX helper — NOT a security control. Backend enforces roles on every request.
+  // UX helper - NOT a security control. Backend enforces roles on every request.
   hasRole(role: string): boolean {
     return this.currentUser()?.roles.includes(role) ?? false;
   }
 
-  // UX helper — NOT a security control. Backend enforces roles on every request.
+  // UX helper - NOT a security control. Backend enforces roles on every request.
   hasAnyRole(roles: string[]): boolean {
     const userRoles = this.currentUser()?.roles;
     if (!userRoles) return false;
     return roles.some((role) => userRoles.includes(role));
   }
 
-  // UX helper — NOT a security control. Backend enforces permissions on every request.
+  // UX helper - NOT a security control. Backend enforces permissions on every request.
   hasPermission(permission: string): boolean {
     return this.currentProfile()?.permissions.includes(permission) ?? false;
   }
 
-  // UX helper — NOT a security control. Backend enforces permissions on every request.
+  // UX helper - NOT a security control. Backend enforces permissions on every request.
   hasAnyPermission(permissions: string[]): boolean {
     const userPermissions = this.currentProfile()?.permissions;
     if (!userPermissions) return false;

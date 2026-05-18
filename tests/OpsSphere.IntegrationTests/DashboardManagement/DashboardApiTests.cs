@@ -20,6 +20,7 @@ namespace OpsSphere.IntegrationTests.DashboardManagement;
 
 public sealed class DashboardApiTests
 {
+    private const int SeededNovaBankTicketCount = 6;
     private const string AdminEmail = "admin@opssphere.local";
     private const string ManagerEmail = "manager.latam@opssphere.local";
     private const string SupervisorEmail = "supervisor.novabank@opssphere.local";
@@ -71,7 +72,7 @@ public sealed class DashboardApiTests
         var dashboard = await ReadDataAsync<OperationalDashboardResponse>(
             await manager.GetAsync("/api/dashboard/operational"));
 
-        Assert.Equal(1, dashboard.TotalTicketCount);
+        Assert.Equal(SeededNovaBankTicketCount + 1, dashboard.TotalTicketCount);
         Assert.Single(dashboard.TicketsByAccount);
         Assert.Equal(SeedIds.Accounts.NovaBank, dashboard.TicketsByAccount[0].EntityId);
     }
@@ -87,7 +88,7 @@ public sealed class DashboardApiTests
         var dashboard = await ReadDataAsync<OperationalDashboardResponse>(
             await supervisor.GetAsync("/api/dashboard/operational"));
 
-        Assert.Equal(1, dashboard.TotalTicketCount);
+        Assert.Equal(SeededNovaBankTicketCount + 1, dashboard.TotalTicketCount);
         Assert.Equal(SeedIds.Accounts.NovaBank, dashboard.TicketsByAccount[0].EntityId);
     }
 
@@ -102,7 +103,7 @@ public sealed class DashboardApiTests
         var dashboard = await ReadDataAsync<OperationalDashboardResponse>(
             await agent.GetAsync("/api/dashboard/operational"));
 
-        Assert.Equal(1, dashboard.TotalTicketCount);
+        Assert.Equal(SeededNovaBankTicketCount + 1, dashboard.TotalTicketCount);
         Assert.Equal(SeedIds.Campaigns.NovaBankCreditCard, dashboard.TicketsByCampaign[0].EntityId);
     }
 
@@ -148,15 +149,15 @@ public sealed class DashboardApiTests
         var dashboard = await ReadDataAsync<OperationalDashboardResponse>(
             await agent.GetAsync("/api/dashboard/operational"));
 
-        Assert.Equal(2, dashboard.TotalTicketCount);
-        Assert.Equal(1, dashboard.OpenTicketCount);
-        Assert.Equal(2, dashboard.AssignedTicketCount);
-        Assert.Equal(1, dashboard.EscalatedTicketCount);
-        Assert.Contains(dashboard.TicketsByStatus, item => item.Key == "Open" && item.Count == 1);
-        Assert.Contains(dashboard.TicketsByStatus, item => item.Key == "Assigned" && item.Count == 1);
-        Assert.Contains(dashboard.TicketsByPriority, item => item.Key == "High" && item.Count == 1);
-        Assert.Contains(dashboard.TicketsByAssignedAgent, item => item.UserId == SeedIds.Users.AgentNovabank && item.Count == 2);
-        Assert.Contains(dashboard.TicketsBySupervisor, item => item.UserId == SeedIds.Users.SupervisorNovabank && item.Count == 1);
+        Assert.Equal(SeededNovaBankTicketCount + 2, dashboard.TotalTicketCount);
+        Assert.Equal(2, dashboard.OpenTicketCount);
+        Assert.Equal(7, dashboard.AssignedTicketCount);
+        Assert.Equal(2, dashboard.EscalatedTicketCount);
+        Assert.Contains(dashboard.TicketsByStatus, item => item.Key == "Open" && item.Count == 2);
+        Assert.Contains(dashboard.TicketsByStatus, item => item.Key == "Assigned" && item.Count == 2);
+        Assert.Contains(dashboard.TicketsByPriority, item => item.Key == "High" && item.Count == 3);
+        Assert.Contains(dashboard.TicketsByAssignedAgent, item => item.UserId == SeedIds.Users.AgentNovabank && item.Count == 7);
+        Assert.Contains(dashboard.TicketsBySupervisor, item => item.UserId == SeedIds.Users.SupervisorNovabank && item.Count == 6);
     }
 
     [Fact]
@@ -176,8 +177,8 @@ public sealed class DashboardApiTests
         var dashboard = await ReadDataAsync<OperationalDashboardResponse>(
             await agent.GetAsync("/api/dashboard/operational"));
 
-        Assert.Equal(1, dashboard.BreachedTicketCount);
-        Assert.Contains(dashboard.TicketsBySlaState, item => item.Key == "Breached" && item.Count == 1);
+        Assert.Equal(3, dashboard.BreachedTicketCount);
+        Assert.Contains(dashboard.TicketsBySlaState, item => item.Key == "Breached" && item.Count == 3);
     }
 
     [Fact]
@@ -191,7 +192,7 @@ public sealed class DashboardApiTests
         var dashboard = await ReadDataAsync<OperationalDashboardResponse>(
             await supervisor.GetAsync($"/api/dashboard/operational?accountId={SeedIds.Accounts.NovaBank}"));
 
-        Assert.Equal(2, dashboard.TotalTicketCount);
+        Assert.Equal(SeededNovaBankTicketCount + 2, dashboard.TotalTicketCount);
         Assert.All(dashboard.TicketsByAccount, item => Assert.Equal(SeedIds.Accounts.NovaBank, item.EntityId));
     }
 

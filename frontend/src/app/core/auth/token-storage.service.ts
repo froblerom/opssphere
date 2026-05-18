@@ -1,13 +1,16 @@
 import { Injectable } from '@angular/core';
+import { signal } from '@angular/core';
 
 @Injectable({
   providedIn: 'root'
 })
 export class TokenStorageService {
   private readonly tokenKey = 'opssphere.accessToken';
+  private readonly storedToken = signal<string | null>(this.readToken());
+  readonly token = this.storedToken.asReadonly();
 
   getToken(): string | null {
-    return this.storage()?.getItem(this.tokenKey) ?? null;
+    return this.storedToken();
   }
 
   getUsableToken(): string | null {
@@ -22,10 +25,16 @@ export class TokenStorageService {
 
   setToken(token: string): void {
     this.storage()?.setItem(this.tokenKey, token);
+    this.storedToken.set(token);
   }
 
   clearToken(): void {
     this.storage()?.removeItem(this.tokenKey);
+    this.storedToken.set(null);
+  }
+
+  private readToken(): string | null {
+    return this.storage()?.getItem(this.tokenKey) ?? null;
   }
 
   private storage(): Storage | null {

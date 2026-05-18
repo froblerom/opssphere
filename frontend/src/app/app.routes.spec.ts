@@ -3,6 +3,16 @@ import { AppPermissions } from './core/auth/auth-permissions';
 import { permissionGuard } from './core/guards/auth.guard';
 
 describe('app organization routes', () => {
+  it('exposes access denied and customer MVP routes', () => {
+    expect(routes.find((route) => route.path === 'access-denied')?.canActivate).toBeTruthy();
+    expect(routeData('customers')).toEqual({
+      permissions: [AppPermissions.CustomersView]
+    });
+    expect(routeData('customers/create')).toEqual({
+      permissions: [AppPermissions.CustomersCreate]
+    });
+  });
+
   it('guards organization administration routes with permissionGuard metadata', () => {
     const organizationRoutes = routes.filter((route) => route.path?.startsWith('admin/organization'));
 

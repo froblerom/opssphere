@@ -1,16 +1,26 @@
-import { HttpRequest, HttpResponse } from '@angular/common/http';
+import { HttpErrorResponse, HttpRequest, HttpResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { Router } from '@angular/router';
+import { of, throwError } from 'rxjs';
 
 import { TokenStorageService } from '../auth/token-storage.service';
 import { authInterceptor } from './auth.interceptor';
 
 describe('authInterceptor', () => {
   let tokenStorage: TokenStorageService;
+  let router: Pick<Router, 'navigate' | 'url'>;
 
   beforeEach(() => {
     localStorage.clear();
-    TestBed.configureTestingModule({});
+    router = {
+      navigate: jasmine.createSpy('navigate'),
+      url: '/tickets'
+    } as Pick<Router, 'navigate' | 'url'>;
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: Router, useValue: router }
+      ]
+    });
     tokenStorage = TestBed.inject(TokenStorageService);
   });
 
@@ -48,6 +58,22 @@ describe('authInterceptor', () => {
     TestBed.runInInjectionContext(() => authInterceptor(request, next)).subscribe(() => {
       expect(next).toHaveBeenCalledOnceWith(request);
       done();
+    });
+  });
+
+  it('clears the token and redirects to login on API 401 responses', (done) => {
+    tokenStorage.setToken(createToken());
+    const request = new HttpRequest('GET', '/api/tickets');
+    const next = jasmine.createSpy('next').and.returnValue(throwError(() => new HttpErrorResponse({ status: 401 })));
+
+    TestBed.runInInjectionContext(() => authInterceptor(request, next)).subscribe({
+      error: () => {
+        expect(tokenStorage.getToken()).toBeNull();
+        expect(router.navigate).toHaveBeenCalledOnceWith(['/login'], {
+          queryParams: { returnUrl: '/tickets' }
+        });
+        done();
+      }
     });
   });
 });

@@ -1,6 +1,6 @@
-// Frontend permission constants — must match backend OpsSphere.Domain.Authorization.Permissions.
+// Frontend permission constants - must match backend OpsSphere.Domain.Authorization.Permissions.
 // SECURITY NOTE: These are for UX visibility only. Backend authorization is the source of truth.
-// Do not use these to make security decisions — only to improve UX by hiding unavailable actions.
+// Do not use these to make security decisions - only to improve UX by hiding unavailable actions.
 
 export const AppPermissions = {
   UsersView: 'users.view',
@@ -54,7 +54,7 @@ export const AppPermissions = {
 
 export type AppPermission = (typeof AppPermissions)[keyof typeof AppPermissions];
 
-// Runtime role name constants — must match backend OpsSphere.Domain.Authorization.Roles.
+// Runtime role name constants - must match backend OpsSphere.Domain.Authorization.Roles.
 // SECURITY NOTE: For UX navigation only. Backend enforces role authorization.
 export const AppRoles = {
   Admin: 'Admin',
