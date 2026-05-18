@@ -3,6 +3,7 @@ using OpsSphere.Application.Features.AuditManagement;
 using OpsSphere.Application.Features.Auth.GetCurrentUser;
 using OpsSphere.Application.Features.Auth.Login;
 using OpsSphere.Application.Features.CustomerManagement;
+using OpsSphere.Application.Features.DashboardManagement;
 using OpsSphere.Application.Features.OrganizationManagement;
 using OpsSphere.Application.Features.SlaManagement;
 using OpsSphere.Application.Features.TicketManagement;
@@ -71,6 +72,7 @@ public static class DependencyInjection
         services.AddScoped<GetAuditLogsQueryHandler>();
         services.AddScoped<GetAuditLogByIdQueryHandler>();
         services.AddScoped<GetEntityAuditHistoryQueryHandler>();
+        services.AddScoped<GetOperationalDashboardQueryHandler>();
         services.AddSingleton<SlaEvaluator>();
 
         return services;

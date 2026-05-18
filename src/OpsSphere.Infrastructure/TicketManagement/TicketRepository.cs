@@ -375,12 +375,24 @@ internal sealed class TicketRepository : ITicketRepository
             ticketsQuery = ticketsQuery.Where(t => t.Status == query.Status.Value);
         if (query.Priority.HasValue)
             ticketsQuery = ticketsQuery.Where(t => t.Priority == query.Priority.Value);
+        if (query.RegionId.HasValue)
+            ticketsQuery = ticketsQuery.Where(t => t.RegionId == query.RegionId.Value);
+        if (query.CountryId.HasValue)
+            ticketsQuery = ticketsQuery.Where(t => t.CountryId == query.CountryId.Value);
         if (query.AccountId.HasValue)
             ticketsQuery = ticketsQuery.Where(t => t.AccountId == query.AccountId.Value);
         if (query.CampaignId.HasValue)
             ticketsQuery = ticketsQuery.Where(t => t.CampaignId == query.CampaignId.Value);
+        if (query.SupervisorUserId.HasValue)
+            ticketsQuery = ticketsQuery.Where(t => t.SupervisorUserId == query.SupervisorUserId.Value);
         if (query.AssignedAgentUserId.HasValue)
             ticketsQuery = ticketsQuery.Where(t => t.AssignedAgentUserId == query.AssignedAgentUserId.Value);
+        if (query.IsEscalated.HasValue)
+            ticketsQuery = ticketsQuery.Where(t => t.IsEscalated == query.IsEscalated.Value);
+        if (query.DateFrom.HasValue)
+            ticketsQuery = ticketsQuery.Where(t => t.CreatedAt >= query.DateFrom.Value);
+        if (query.DateTo.HasValue)
+            ticketsQuery = ticketsQuery.Where(t => t.CreatedAt <= query.DateTo.Value);
 
         var ticketReadModels = await ticketsQuery
             .OrderByDescending(t => t.CreatedAt)

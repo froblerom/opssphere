@@ -144,9 +144,17 @@ export class TicketService {
     if (filters.status) params.set('status', filters.status);
     if (filters.priority) params.set('priority', filters.priority);
     if (filters.slaState) params.set('slaState', filters.slaState);
+    if (filters.regionId) params.set('regionId', filters.regionId);
+    if (filters.countryId) params.set('countryId', filters.countryId);
     if (filters.accountId) params.set('accountId', filters.accountId);
     if (filters.campaignId) params.set('campaignId', filters.campaignId);
+    if (filters.supervisorUserId) params.set('supervisorUserId', filters.supervisorUserId);
     if (filters.assignedAgentUserId) params.set('assignedAgentUserId', filters.assignedAgentUserId);
+    if (filters.isEscalated !== undefined && filters.isEscalated !== null && filters.isEscalated !== '') {
+      params.set('isEscalated', String(filters.isEscalated));
+    }
+    if (filters.dateFrom) params.set('dateFrom', filters.dateFrom);
+    if (filters.dateTo) params.set('dateTo', filters.dateTo);
 
     const query = params.toString();
     return query ? `?${query}` : '';

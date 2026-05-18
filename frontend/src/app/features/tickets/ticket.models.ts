@@ -17,9 +17,15 @@ export interface TicketListFilter {
   status?: string | null;
   priority?: string | null;
   slaState?: string | null;
+  regionId?: string | null;
+  countryId?: string | null;
   accountId?: string | null;
   campaignId?: string | null;
+  supervisorUserId?: string | null;
   assignedAgentUserId?: string | null;
+  isEscalated?: boolean | string | null;
+  dateFrom?: string | null;
+  dateTo?: string | null;
 }
 
 export type TicketFilters = TicketListFilter;

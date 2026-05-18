@@ -87,13 +87,21 @@ public sealed class TicketsController : ControllerBase
         [FromQuery] SlaState? slaState,
         [FromQuery] TicketStatus? status,
         [FromQuery] TicketPriority? priority,
+        [FromQuery] Guid? regionId,
+        [FromQuery] Guid? countryId,
         [FromQuery] Guid? accountId,
         [FromQuery] Guid? campaignId,
+        [FromQuery] Guid? supervisorUserId,
         [FromQuery] Guid? assignedAgentUserId,
+        [FromQuery] bool? isEscalated,
+        [FromQuery] DateTime? dateFrom,
+        [FromQuery] DateTime? dateTo,
         CancellationToken cancellationToken) =>
         Ok(new ApiResponse<IReadOnlyList<TicketListItemDto>>(
             await getTickets.HandleAsync(
-                new GetTicketsQuery(slaState, status, priority, accountId, campaignId, assignedAgentUserId),
+                new GetTicketsQuery(
+                    slaState, status, priority, regionId, countryId, accountId, campaignId,
+                    supervisorUserId, assignedAgentUserId, isEscalated, dateFrom, dateTo),
                 cancellationToken)));
 
     [HttpGet("tickets/escalations")]
