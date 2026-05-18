@@ -483,6 +483,106 @@ public sealed class UpdateTicketPriorityCommandHandler(
     }
 }
 
+public sealed class AddInternalCommentCommandHandler(
+    ITicketRepository repository,
+    ICurrentUserContext currentUser,
+    IAuditWriter auditWriter)
+{
+    private const int CommentBodyMaxLength = 5000;
+
+    public async Task<AddInternalCommentResponse> HandleAsync(AddInternalCommentCommand command, CancellationToken cancellationToken)
+    {
+        var body = Validate(command);
+
+        var ticket = await repository.GetTicketForAssignmentAsync(command.TicketId, cancellationToken)
+            ?? throw new NotFoundException("Ticket", command.TicketId);
+
+        EnsureTicketCanReceiveComment(ticket.Status, body);
+        var normalizedBody = TicketWorkflowRules.NormalizeCommentBody(body);
+        var actorUserId = currentUser.UserId ?? throw new ValidationException("userId", "Authenticated user context is required.");
+        var authorDisplayName = currentUser.DisplayName ?? string.Empty;
+        var now = DateTime.UtcNow;
+
+        var comment = new TicketComment
+        {
+            Id = Guid.NewGuid(),
+            TicketId = ticket.Id,
+            AuthorUserId = actorUserId,
+            Body = normalizedBody,
+            IsDeleted = false,
+            DeletedAt = null,
+            CreatedAt = now
+        };
+
+        await repository.AddCommentAsync(comment, cancellationToken);
+
+        await auditWriter.WriteAsync(
+            "InternalCommentAdded",
+            "Ticket",
+            ticket.Id,
+            null,
+            TicketAuditJson.Serialize(new
+            {
+                commentId = comment.Id,
+                authorUserId = actorUserId
+            }),
+            cancellationToken);
+
+        await repository.SaveChangesAsync(cancellationToken);
+
+        return new AddInternalCommentResponse(
+            comment.Id,
+            ticket.Id,
+            ticket.TicketNumber,
+            actorUserId,
+            authorDisplayName,
+            comment.Body,
+            comment.CreatedAt,
+            "Comment added successfully.");
+    }
+
+    private static string Validate(AddInternalCommentCommand command)
+    {
+        var failures = new List<ValidationFailure>();
+        if (command.TicketId == Guid.Empty) failures.Add(new ValidationFailure("ticketId", "Ticket is required."));
+
+        var body = command.Body?.Trim();
+        if (string.IsNullOrWhiteSpace(body))
+            failures.Add(new ValidationFailure("body", "Comment body is required."));
+        else if (body.Length > CommentBodyMaxLength)
+            failures.Add(new ValidationFailure("body", $"Comment body must be {CommentBodyMaxLength} characters or fewer."));
+
+        if (failures.Count > 0) throw new ValidationException(failures);
+        return body!;
+    }
+
+    private static void EnsureTicketCanReceiveComment(TicketStatus status, string body)
+    {
+        try
+        {
+            TicketWorkflowRules.EnsureCanAddComment(status, body);
+        }
+        catch (TicketDomainException ex)
+        {
+            throw new BusinessRuleException(ex.Message);
+        }
+    }
+}
+
+public sealed class GetTicketCommentsQueryHandler(ITicketRepository repository)
+{
+    public async Task<IReadOnlyList<TicketCommentDto>> HandleAsync(GetTicketCommentsQuery query, CancellationToken cancellationToken)
+    {
+        if (query.TicketId == Guid.Empty)
+            throw new ValidationException("ticketId", "Ticket is required.");
+
+        var ticket = await repository.GetTicketForAssignmentAsync(query.TicketId, cancellationToken)
+            ?? throw new NotFoundException("Ticket", query.TicketId);
+
+        return await repository.GetCommentsAsync(ticket.Id, cancellationToken);
+    }
+}
+
 internal static class TicketValidation
 {
     public static (string Category, string Subject, string Description, TicketPriority Priority) Validate(

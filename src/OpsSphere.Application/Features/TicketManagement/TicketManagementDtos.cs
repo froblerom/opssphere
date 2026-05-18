@@ -107,3 +107,24 @@ public sealed record UpdateTicketPriorityResponse(
     string PreviousPriority,
     string NewPriority,
     string Message);
+
+public sealed record AddInternalCommentRequest(
+    string? Body);
+
+public sealed record AddInternalCommentResponse(
+    Guid CommentId,
+    Guid TicketId,
+    string TicketNumber,
+    Guid AuthorUserId,
+    string AuthorDisplayName,
+    string Body,
+    DateTime CreatedAt,
+    string Message);
+
+public sealed record TicketCommentDto(
+    Guid Id,
+    Guid TicketId,
+    Guid AuthorUserId,
+    string AuthorDisplayName,
+    string Body,
+    DateTime CreatedAt);

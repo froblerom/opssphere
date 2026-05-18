@@ -19,6 +19,8 @@ public sealed class TicketsController : ControllerBase
     private readonly GetEligibleAgentsQueryHandler getEligibleAgents;
     private readonly UpdateTicketStatusCommandHandler updateTicketStatus;
     private readonly UpdateTicketPriorityCommandHandler updateTicketPriority;
+    private readonly AddInternalCommentCommandHandler addInternalComment;
+    private readonly GetTicketCommentsQueryHandler getTicketComments;
 
     public TicketsController(
         ILogger<TicketsController> logger,
@@ -28,7 +30,9 @@ public sealed class TicketsController : ControllerBase
         AssignTicketCommandHandler assignTicket,
         GetEligibleAgentsQueryHandler getEligibleAgents,
         UpdateTicketStatusCommandHandler updateTicketStatus,
-        UpdateTicketPriorityCommandHandler updateTicketPriority)
+        UpdateTicketPriorityCommandHandler updateTicketPriority,
+        AddInternalCommentCommandHandler addInternalComment,
+        GetTicketCommentsQueryHandler getTicketComments)
     {
         this.logger = logger;
         this.createTicket = createTicket;
@@ -38,6 +42,8 @@ public sealed class TicketsController : ControllerBase
         this.getEligibleAgents = getEligibleAgents;
         this.updateTicketStatus = updateTicketStatus;
         this.updateTicketPriority = updateTicketPriority;
+        this.addInternalComment = addInternalComment;
+        this.getTicketComments = getTicketComments;
     }
 
     [HttpPost("tickets")]
@@ -112,6 +118,25 @@ public sealed class TicketsController : ControllerBase
             "Ticket priority updated. TicketId={TicketId} TicketNumber={TicketNumber} PreviousPriority={PreviousPriority} NewPriority={NewPriority}",
             result.TicketId, result.TicketNumber, result.PreviousPriority, result.NewPriority);
         return Ok(new ApiResponse<UpdateTicketPriorityResponse>(result));
+    }
+
+    [HttpGet("tickets/{id:guid}/comments")]
+    [Authorize(Policy = Permissions.TicketsView)]
+    public async Task<IActionResult> GetComments(Guid id, CancellationToken cancellationToken) =>
+        Ok(new ApiResponse<IReadOnlyList<TicketCommentDto>>(
+            await getTicketComments.HandleAsync(new GetTicketCommentsQuery(id), cancellationToken)));
+
+    [HttpPost("tickets/{id:guid}/comments")]
+    [Authorize(Policy = Permissions.TicketsComment)]
+    public async Task<IActionResult> AddComment(Guid id, AddInternalCommentRequest request, CancellationToken cancellationToken)
+    {
+        var result = await addInternalComment.HandleAsync(
+            new AddInternalCommentCommand(id, request.Body),
+            cancellationToken);
+        logger.LogInformation(
+            "Internal comment added. TicketId={TicketId} TicketNumber={TicketNumber} CommentId={CommentId}",
+            result.TicketId, result.TicketNumber, result.CommentId);
+        return Ok(new ApiResponse<AddInternalCommentResponse>(result));
     }
 
     public sealed record CreateTicketRequest(

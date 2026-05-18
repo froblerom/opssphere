@@ -13,6 +13,8 @@ public interface ITicketRepository
     Task<AgentAssignmentCandidateSnapshot?> GetAgentAssignmentCandidateAsync(Guid userId, CancellationToken cancellationToken);
     Task AddAssignmentAsync(TicketAssignment assignment, CancellationToken cancellationToken);
     Task AddStatusHistoryAsync(TicketStatusHistory statusHistory, CancellationToken cancellationToken);
+    Task AddCommentAsync(TicketComment comment, CancellationToken cancellationToken);
+    Task<IReadOnlyList<TicketCommentDto>> GetCommentsAsync(Guid ticketId, CancellationToken cancellationToken);
     Task SaveChangesAsync(CancellationToken cancellationToken);
     Task<TicketDetailDto?> GetTicketByIdAsync(Guid id, CancellationToken cancellationToken);
     Task<IReadOnlyList<TicketListItemDto>> GetTicketsAsync(CancellationToken cancellationToken);

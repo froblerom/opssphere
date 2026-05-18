@@ -8,7 +8,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { SafeApiError } from '../../core/models/api-error.models';
 import { ApiErrorParserService } from '../../core/services/api-error-parser.service';
 import { TicketService } from './ticket.service';
-import { EligibleAgentDto, TicketDetail } from './ticket.models';
+import { EligibleAgentDto, TicketCommentDto, TicketDetail } from './ticket.models';
 
 @Component({
   selector: 'app-ticket-detail',
@@ -173,6 +173,44 @@ import { EligibleAgentDto, TicketDetail } from './ticket.models';
             </button>
           </form>
         </section>
+
+        <section *ngIf="canShowComments" class="comments-section" aria-labelledby="comments-title">
+          <h2 id="comments-title">Internal Comments</h2>
+
+          <div *ngIf="commentError" class="error">{{ commentError }}</div>
+
+          <div *ngIf="comments.length > 0; else noComments" class="comments-list">
+            <article *ngFor="let comment of comments" class="comment-item">
+              <header>
+                <strong>{{ comment.authorDisplayName }}</strong>
+                <span>{{ comment.createdAt | date:'medium' }}</span>
+              </header>
+              <p>{{ comment.body }}</p>
+            </article>
+          </div>
+
+          <ng-template #noComments>
+            <p>No internal comments yet.</p>
+          </ng-template>
+
+          <form *ngIf="canAddComment" [formGroup]="commentForm" (ngSubmit)="addComment()">
+            <div class="form-group">
+              <label for="commentBody">Comment</label>
+              <textarea id="commentBody" formControlName="body" rows="4" maxlength="5000" required></textarea>
+              <div *ngIf="commentFieldError('body')" class="field-error">
+                {{ commentFieldError('body') }}
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              class="btn btn-primary"
+              [disabled]="commentSubmitting"
+            >
+              {{ commentSubmitting ? 'Adding...' : 'Add Comment' }}
+            </button>
+          </form>
+        </section>
       </ng-container>
 
       <a routerLink="/tickets">Back to list</a>
@@ -191,19 +229,23 @@ export class TicketDetailComponent implements OnInit {
 
   ticket: TicketDetail | null = null;
   eligibleAgents: EligibleAgentDto[] = [];
+  comments: TicketCommentDto[] = [];
   loading = true;
   assignmentLoading = false;
   assignmentSubmitting = false;
   statusSubmitting = false;
   prioritySubmitting = false;
+  commentSubmitting = false;
   error: string | null = null;
   assignmentError: string | null = null;
   assignmentLoadError: string | null = null;
   statusError: string | null = null;
   priorityError: string | null = null;
+  commentError: string | null = null;
   assignmentFieldErrors: Record<string, string> = {};
   statusFieldErrors: Record<string, string> = {};
   priorityFieldErrors: Record<string, string> = {};
+  commentFieldErrors: Record<string, string> = {};
 
   assignmentForm = this.fb.group({
     targetAgentUserId: ['', Validators.required],
@@ -220,6 +262,10 @@ export class TicketDetailComponent implements OnInit {
     changeReason: ['', Validators.maxLength(500)]
   });
 
+  commentForm = this.fb.group({
+    body: ['', [Validators.required, Validators.maxLength(5000)]]
+  });
+
   get canShowAssignment() {
     return this.canAssignTickets && this.ticket?.status !== 'Closed';
   }
@@ -230,6 +276,14 @@ export class TicketDetailComponent implements OnInit {
 
   get canShowPriorityUpdate() {
     return this.canUpdateTicketPriority && this.ticket?.status !== 'Closed';
+  }
+
+  get canShowComments() {
+    return this.authService.hasPermission(AppPermissions.TicketsView);
+  }
+
+  get canAddComment() {
+    return this.authService.hasPermission(AppPermissions.TicketsComment) && this.ticket?.status !== 'Closed';
   }
 
   get statusRequiresAssignedAgent() {
@@ -255,6 +309,7 @@ export class TicketDetailComponent implements OnInit {
         this.ticket = ticket;
         this.loading = false;
         this.loadEligibleAgentsIfAllowed();
+        this.loadCommentsIfAllowed();
       },
       error: () => {
         this.error = 'Ticket not found.';
@@ -273,6 +328,10 @@ export class TicketDetailComponent implements OnInit {
 
   priorityFieldError(name: string): string | null {
     return this.priorityFieldErrors[name] ?? null;
+  }
+
+  commentFieldError(name: string): string | null {
+    return this.commentFieldErrors[name] ?? null;
   }
 
   assignTicket() {
@@ -372,6 +431,53 @@ export class TicketDetailComponent implements OnInit {
     });
   }
 
+  addComment() {
+    if (!this.ticket || this.commentSubmitting) return;
+
+    this.commentError = null;
+    this.commentFieldErrors = {};
+
+    const body = (this.commentForm.controls.body.value ?? '').trim();
+    if (!body) {
+      this.commentFieldErrors = { body: 'Comment body is required.' };
+      return;
+    }
+
+    if (body.length > 5000) {
+      this.commentFieldErrors = { body: 'Comment body must be 5000 characters or fewer.' };
+      return;
+    }
+
+    this.commentSubmitting = true;
+
+    this.ticketService.addComment(this.ticket.id, body).subscribe({
+      next: (response) => {
+        this.comments = [
+          ...this.comments,
+          {
+            id: response.commentId,
+            ticketId: response.ticketId,
+            authorUserId: response.authorUserId,
+            authorDisplayName: response.authorDisplayName,
+            body: response.body,
+            createdAt: response.createdAt
+          }
+        ];
+        this.commentForm.reset({ body: '' });
+        this.commentError = null;
+        this.commentFieldErrors = {};
+        this.commentSubmitting = false;
+      },
+      error: (err) => {
+        const parsed: SafeApiError = this.errorParser.parse(err);
+        const fieldDetails = parsed.details.filter((d) => d.field);
+        this.commentFieldErrors = Object.fromEntries(fieldDetails.map((d) => [d.field!, d.message]));
+        this.commentError = fieldDetails.length === parsed.details.length && parsed.details.length > 0 ? null : parsed.message;
+        this.commentSubmitting = false;
+      }
+    });
+  }
+
   private loadEligibleAgentsIfAllowed() {
     if (!this.ticket || !this.canShowAssignment) return;
 
@@ -388,6 +494,21 @@ export class TicketDetailComponent implements OnInit {
         this.assignmentLoadError = parsed.message;
         this.eligibleAgents = [];
         this.assignmentLoading = false;
+      }
+    });
+  }
+
+  private loadCommentsIfAllowed() {
+    if (!this.ticket || !this.canShowComments) return;
+
+    this.ticketService.getComments(this.ticket.id).subscribe({
+      next: (comments) => {
+        this.comments = comments;
+      },
+      error: (err) => {
+        const parsed: SafeApiError = this.errorParser.parse(err);
+        this.commentError = parsed.message;
+        this.comments = [];
       }
     });
   }

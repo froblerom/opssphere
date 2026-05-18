@@ -4,11 +4,14 @@ import { map } from 'rxjs';
 import { ApiResponse } from '../../core/auth/auth.models';
 import { ApiClientService } from '../../core/services/api-client.service';
 import {
+  AddCommentRequest,
+  AddCommentResponse,
   AssignTicketRequest,
   AssignTicketResponse,
   CreateTicketRequest,
   CreateTicketResponse,
   EligibleAgentDto,
+  TicketCommentDto,
   TicketDetail,
   TicketListItem,
   UpdateTicketPriorityRequest,
@@ -37,6 +40,20 @@ export class TicketService {
 
   getEligibleAgents(ticketId: string) {
     return this.apiClient.get<ApiResponse<EligibleAgentDto[]>>(`tickets/${ticketId}/eligible-agents`).pipe(map((r) => r.data));
+  }
+
+  getComments(ticketId: string) {
+    return this.apiClient.get<ApiResponse<TicketCommentDto[]>>(`tickets/${ticketId}/comments`).pipe(map((r) => r.data));
+  }
+
+  addComment(ticketId: string, body: string) {
+    const request: AddCommentRequest = {
+      body: body.trim()
+    };
+
+    return this.apiClient
+      .post<AddCommentRequest, ApiResponse<AddCommentResponse>>(`tickets/${ticketId}/comments`, request)
+      .pipe(map((r) => r.data));
   }
 
   assignTicket(ticketId: string, targetAgentUserId: string, reassignmentReason?: string | null) {
