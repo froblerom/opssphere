@@ -131,6 +131,27 @@ internal sealed class TicketRepository : ITicketRepository
         return Task.CompletedTask;
     }
 
+    public Task AddCommentAsync(TicketComment comment, CancellationToken cancellationToken)
+    {
+        dbContext.TicketComments.Add(comment);
+        return Task.CompletedTask;
+    }
+
+    public async Task<IReadOnlyList<TicketCommentDto>> GetCommentsAsync(Guid ticketId, CancellationToken cancellationToken) =>
+        await dbContext.TicketComments
+            .AsNoTracking()
+            .Where(c => c.TicketId == ticketId && !c.IsDeleted)
+            .OrderBy(c => c.CreatedAt)
+            .ThenBy(c => c.Id)
+            .Select(c => new TicketCommentDto(
+                c.Id,
+                c.TicketId,
+                c.AuthorUserId,
+                c.Author.DisplayName,
+                c.Body,
+                c.CreatedAt))
+            .ToArrayAsync(cancellationToken);
+
     public async Task SaveChangesAsync(CancellationToken cancellationToken)
     {
         try

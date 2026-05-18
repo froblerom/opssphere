@@ -29,3 +29,9 @@ public sealed record UpdateTicketPriorityCommand(
     Guid TicketId,
     string? Priority,
     string? ChangeReason);
+
+public sealed record AddInternalCommentCommand(
+    Guid TicketId,
+    string? Body);
+
+public sealed record GetTicketCommentsQuery(Guid TicketId);

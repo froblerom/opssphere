@@ -90,3 +90,27 @@ export interface UpdateTicketPriorityResponse {
   newPriority: string;
   message: string;
 }
+
+export interface TicketCommentDto {
+  id: string;
+  ticketId: string;
+  authorUserId: string;
+  authorDisplayName: string;
+  body: string;
+  createdAt: string;
+}
+
+export interface AddCommentRequest {
+  body: string;
+}
+
+export interface AddCommentResponse {
+  commentId: string;
+  ticketId: string;
+  ticketNumber: string;
+  authorUserId: string;
+  authorDisplayName: string;
+  body: string;
+  createdAt: string;
+  message: string;
+}

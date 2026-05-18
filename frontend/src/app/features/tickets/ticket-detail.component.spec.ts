@@ -6,19 +6,19 @@ import { AuthService } from '../../core/auth/auth.service';
 import { AppPermissions } from '../../core/auth/auth-permissions';
 import { ApiErrorParserService } from '../../core/services/api-error-parser.service';
 import { TicketDetailComponent } from './ticket-detail.component';
-import { TicketDetail } from './ticket.models';
+import { TicketCommentDto, TicketDetail } from './ticket.models';
 import { TicketService } from './ticket.service';
 
 describe('TicketDetailComponent', () => {
-  let ticketService: jasmine.SpyObj<Pick<TicketService, 'getTicket' | 'getEligibleAgents' | 'assignTicket' | 'updateTicketStatus' | 'updateTicketPriority'>>;
+  let ticketService: jasmine.SpyObj<Pick<TicketService, 'getTicket' | 'getEligibleAgents' | 'assignTicket' | 'updateTicketStatus' | 'updateTicketPriority' | 'getComments' | 'addComment'>>;
   let authService: jasmine.SpyObj<Pick<AuthService, 'hasPermission'>>;
   let errorParser: jasmine.SpyObj<Pick<ApiErrorParserService, 'parse'>>;
   let fixture: ComponentFixture<TicketDetailComponent>;
 
   beforeEach(() => {
-    ticketService = jasmine.createSpyObj<Pick<TicketService, 'getTicket' | 'getEligibleAgents' | 'assignTicket' | 'updateTicketStatus' | 'updateTicketPriority'>>(
+    ticketService = jasmine.createSpyObj<Pick<TicketService, 'getTicket' | 'getEligibleAgents' | 'assignTicket' | 'updateTicketStatus' | 'updateTicketPriority' | 'getComments' | 'addComment'>>(
       'TicketService',
-      ['getTicket', 'getEligibleAgents', 'assignTicket', 'updateTicketStatus', 'updateTicketPriority']
+      ['getTicket', 'getEligibleAgents', 'assignTicket', 'updateTicketStatus', 'updateTicketPriority', 'getComments', 'addComment']
     );
     authService = jasmine.createSpyObj<Pick<AuthService, 'hasPermission'>>('AuthService', ['hasPermission']);
     errorParser = jasmine.createSpyObj<Pick<ApiErrorParserService, 'parse'>>('ApiErrorParserService', ['parse']);
@@ -31,6 +31,7 @@ describe('TicketDetailComponent', () => {
         scopeReference: 'NOVABANK-CC'
       }
     ]));
+    ticketService.getComments.and.returnValue(of([]));
     errorParser.parse.and.returnValue({ code: 'bad_request', message: 'Request failed.', details: [] });
 
     TestBed.configureTestingModule({
@@ -127,6 +128,150 @@ describe('TicketDetailComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Agent is inactive.');
+  });
+
+  it('shows comments list for users with TicketsView permission', () => {
+    authService.hasPermission.and.callFake((permission) => permission === AppPermissions.TicketsView);
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Open' })));
+    ticketService.getComments.and.returnValue(of([
+      buildComment({ body: 'Checked the billing timeline.' })
+    ]));
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Internal Comments');
+    expect(text).toContain('Nova Agent');
+    expect(text).toContain('Checked the billing timeline.');
+    expect(ticketService.getComments).toHaveBeenCalledOnceWith('ticket-1');
+  });
+
+  it('shows add-comment form for TicketsComment and non-Closed ticket', () => {
+    authService.hasPermission.and.callFake((permission) =>
+      permission === AppPermissions.TicketsView || permission === AppPermissions.TicketsComment
+    );
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Open' })));
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Comment');
+    expect(text).toContain('Add Comment');
+  });
+
+  it('hides add-comment form for Closed ticket', () => {
+    authService.hasPermission.and.callFake((permission) =>
+      permission === AppPermissions.TicketsView || permission === AppPermissions.TicketsComment
+    );
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Closed' })));
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Internal Comments');
+    expect(fixture.nativeElement.textContent).not.toContain('Add Comment');
+  });
+
+  it('hides add-comment form for users without TicketsComment permission', () => {
+    authService.hasPermission.and.callFake((permission) => permission === AppPermissions.TicketsView);
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Open' })));
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Internal Comments');
+    expect(fixture.nativeElement.textContent).not.toContain('Add Comment');
+  });
+
+  it('allows viewer without TicketsComment to see comments', () => {
+    authService.hasPermission.and.callFake((permission) => permission === AppPermissions.TicketsView);
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Open' })));
+    ticketService.getComments.and.returnValue(of([
+      buildComment({ body: 'Visible to scoped viewers.' })
+    ]));
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Visible to scoped viewers.');
+    expect(text).not.toContain('Add Comment');
+  });
+
+  it('rejects empty comments client-side', () => {
+    authService.hasPermission.and.callFake((permission) =>
+      permission === AppPermissions.TicketsView || permission === AppPermissions.TicketsComment
+    );
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Open' })));
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance;
+    component.commentForm.setValue({ body: '   ' });
+    component.addComment();
+    fixture.detectChanges();
+
+    expect(ticketService.addComment).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain('Comment body is required.');
+  });
+
+  it('submits comment and appends returned comment', () => {
+    authService.hasPermission.and.callFake((permission) =>
+      permission === AppPermissions.TicketsView || permission === AppPermissions.TicketsComment
+    );
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Open' })));
+    ticketService.addComment.and.returnValue(of({
+      commentId: 'comment-2',
+      ticketId: 'ticket-1',
+      ticketNumber: 'TKT-0001',
+      authorUserId: 'agent-1',
+      authorDisplayName: 'Nova Agent',
+      body: 'Customer ledger reviewed.',
+      createdAt: '2026-05-16T00:00:00Z',
+      message: 'Comment added successfully.'
+    }));
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance;
+    component.commentForm.setValue({ body: '  Customer ledger reviewed.  ' });
+    component.addComment();
+
+    expect(ticketService.addComment).toHaveBeenCalledOnceWith('ticket-1', 'Customer ledger reviewed.');
+    expect(component.comments).toEqual([
+      buildComment({
+        id: 'comment-2',
+        body: 'Customer ledger reviewed.',
+        createdAt: '2026-05-16T00:00:00Z'
+      })
+    ]);
+  });
+
+  it('displays comment validation errors inline', () => {
+    authService.hasPermission.and.callFake((permission) =>
+      permission === AppPermissions.TicketsView || permission === AppPermissions.TicketsComment
+    );
+    ticketService.getTicket.and.returnValue(of(buildTicket({ status: 'Open' })));
+    ticketService.addComment.and.returnValue(throwError(() => new Error('boom')));
+    errorParser.parse.and.returnValue({
+      code: 'validation_failed',
+      message: 'Validation failed.',
+      details: [{ field: 'body', message: 'Comment body is required.' }]
+    });
+
+    fixture = TestBed.createComponent(TicketDetailComponent);
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance;
+    component.commentForm.setValue({ body: 'A comment' });
+    component.addComment();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Comment body is required.');
   });
 
   it('shows status controls with TicketsUpdateStatus permission and non-Closed ticket', () => {
@@ -312,6 +457,18 @@ function buildTicket(overrides: Partial<TicketDetail> = {}): TicketDetail {
     slaDueAt: null,
     createdByUserId: 'user-1',
     updatedAt: null,
+    ...overrides
+  };
+}
+
+function buildComment(overrides: Partial<TicketCommentDto> = {}): TicketCommentDto {
+  return {
+    id: 'comment-1',
+    ticketId: 'ticket-1',
+    authorUserId: 'agent-1',
+    authorDisplayName: 'Nova Agent',
+    body: 'Checked the billing timeline.',
+    createdAt: '2026-05-15T01:00:00Z',
     ...overrides
   };
 }

@@ -3,7 +3,7 @@ import { of } from 'rxjs';
 
 import { ApiClientService } from '../../core/services/api-client.service';
 import { TicketService } from './ticket.service';
-import { CreateTicketRequest, EligibleAgentDto, TicketListItem } from './ticket.models';
+import { CreateTicketRequest, EligibleAgentDto, TicketCommentDto, TicketListItem } from './ticket.models';
 
 describe('TicketService', () => {
   let service: TicketService;
@@ -118,6 +118,48 @@ describe('TicketService', () => {
     service.getEligibleAgents('ticket-1').subscribe((result) => {
       expect(result).toEqual(agents);
       expect(apiClient.get).toHaveBeenCalledOnceWith('tickets/ticket-1/eligible-agents');
+      done();
+    });
+  });
+
+  it('getComments calls correct URL and unwraps data', (done) => {
+    const comments: TicketCommentDto[] = [
+      {
+        id: 'comment-1',
+        ticketId: 'ticket-1',
+        authorUserId: 'agent-1',
+        authorDisplayName: 'Nova Agent',
+        body: 'Checked the billing timeline.',
+        createdAt: '2026-05-16T00:00:00Z'
+      }
+    ];
+    apiClient.get.and.returnValue(of({ data: comments }));
+
+    service.getComments('ticket-1').subscribe((result) => {
+      expect(result).toEqual(comments);
+      expect(apiClient.get).toHaveBeenCalledOnceWith('tickets/ticket-1/comments');
+      done();
+    });
+  });
+
+  it('addComment calls correct URL with request and unwraps response', (done) => {
+    const response = {
+      commentId: 'comment-1',
+      ticketId: 'ticket-1',
+      ticketNumber: 'TKT-0001',
+      authorUserId: 'agent-1',
+      authorDisplayName: 'Nova Agent',
+      body: 'Checked the billing timeline.',
+      createdAt: '2026-05-16T00:00:00Z',
+      message: 'Comment added successfully.'
+    };
+    apiClient.post.and.returnValue(of({ data: response }));
+
+    service.addComment('ticket-1', '  Checked the billing timeline.  ').subscribe((result) => {
+      expect(result).toEqual(response);
+      expect(apiClient.post).toHaveBeenCalledOnceWith('tickets/ticket-1/comments', {
+        body: 'Checked the billing timeline.'
+      });
       done();
     });
   });
