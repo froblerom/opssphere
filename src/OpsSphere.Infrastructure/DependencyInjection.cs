@@ -8,6 +8,7 @@ using OpsSphere.Infrastructure.Auditing;
 using OpsSphere.Domain.Entities;
 using OpsSphere.Infrastructure.Authentication;
 using OpsSphere.Infrastructure.Authorization;
+using OpsSphere.Infrastructure.DashboardManagement;
 using OpsSphere.Infrastructure.Identity;
 using OpsSphere.Infrastructure.CustomerManagement;
 using OpsSphere.Infrastructure.OrganizationManagement;
@@ -53,6 +54,7 @@ public static class DependencyInjection
         services.AddScoped<ITicketRepository, TicketRepository>();
         services.AddScoped<ISlaRepository, SlaRepository>();
         services.AddScoped<ISlaSummaryRepository, SlaSummaryRepository>();
+        services.AddScoped<IDashboardRepository, DashboardRepository>();
         services.AddScoped<ITicketNumberGenerator, SequentialTicketNumberGenerator>();
         services.AddScoped<IAuditRepository, AuditRepository>();
         services.AddScoped<IAuditWriter, AuditWriter>();

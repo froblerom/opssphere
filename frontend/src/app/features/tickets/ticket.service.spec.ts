@@ -62,6 +62,24 @@ describe('TicketService', () => {
     });
   });
 
+  it('getTickets serializes dashboard drill-in filters', (done) => {
+    apiClient.get.and.returnValue(of({ data: [] }));
+
+    service.getTickets({
+      regionId: 'region-1',
+      countryId: 'country-1',
+      supervisorUserId: 'supervisor-1',
+      assignedAgentUserId: 'agent-1',
+      isEscalated: true,
+      dateFrom: '2026-05-01T00:00:00Z',
+      dateTo: '2026-05-18T00:00:00Z'
+    }).subscribe((result) => {
+      expect(result).toEqual([]);
+      expect(apiClient.get).toHaveBeenCalledOnceWith('tickets?regionId=region-1&countryId=country-1&supervisorUserId=supervisor-1&assignedAgentUserId=agent-1&isEscalated=true&dateFrom=2026-05-01T00%3A00%3A00Z&dateTo=2026-05-18T00%3A00%3A00Z');
+      done();
+    });
+  });
+
   it('getSlaSummary calls correct URL and unwraps data', (done) => {
     const summary: SlaSummary = {
       withinSlaCount: 2,

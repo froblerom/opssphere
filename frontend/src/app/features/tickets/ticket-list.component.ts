@@ -1,7 +1,7 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 
 import { AppPermissions } from '../../core/auth/auth-permissions';
 import { AuthService } from '../../core/auth/auth.service';
@@ -108,6 +108,7 @@ import { TicketListFilter, TicketListItem } from './ticket.models';
 export class TicketListComponent implements OnInit {
   private readonly ticketService = inject(TicketService);
   private readonly authService = inject(AuthService);
+  private readonly route = inject(ActivatedRoute);
 
   tickets: TicketListItem[] = [];
   readonly statusOptions = ['Open', 'Assigned', 'InProgress', 'WaitingForCustomer', 'Escalated', 'Resolved', 'Closed'];
@@ -126,6 +127,7 @@ export class TicketListComponent implements OnInit {
   }
 
   ngOnInit() {
+    this.applyQueryParams();
     this.loadTickets();
   }
 
@@ -152,5 +154,23 @@ export class TicketListComponent implements OnInit {
 
   slaStateLabel(state: string) {
     return state === 'WithinSla' ? 'Within SLA' : state === 'AtRisk' ? 'At Risk' : state;
+  }
+
+  private applyQueryParams() {
+    const params = this.route.snapshot.queryParamMap;
+    this.filters = {
+      status: params.get('status') ?? '',
+      priority: params.get('priority') ?? '',
+      slaState: params.get('slaState') ?? '',
+      regionId: params.get('regionId'),
+      countryId: params.get('countryId'),
+      accountId: params.get('accountId'),
+      campaignId: params.get('campaignId'),
+      supervisorUserId: params.get('supervisorUserId'),
+      assignedAgentUserId: params.get('assignedAgentUserId') ?? params.get('agentUserId'),
+      isEscalated: params.get('isEscalated'),
+      dateFrom: params.get('dateFrom'),
+      dateTo: params.get('dateTo')
+    };
   }
 }

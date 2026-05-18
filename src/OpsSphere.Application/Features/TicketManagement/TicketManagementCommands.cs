@@ -17,9 +17,15 @@ public sealed record GetTicketsQuery(
     SlaState? SlaState,
     TicketStatus? Status,
     TicketPriority? Priority,
+    Guid? RegionId,
+    Guid? CountryId,
     Guid? AccountId,
     Guid? CampaignId,
-    Guid? AssignedAgentUserId);
+    Guid? SupervisorUserId,
+    Guid? AssignedAgentUserId,
+    bool? IsEscalated,
+    DateTime? DateFrom,
+    DateTime? DateTo);
 
 public sealed record AssignTicketCommand(
     Guid TicketId,
