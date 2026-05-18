@@ -22,7 +22,7 @@ export class AppComponent {
   protected readonly title = 'OpsSphere';
   private readonly router = inject(Router);
 
-  // Role-aware navigation visibility — UX only, NOT security controls.
+  // Role-aware navigation visibility - UX only, NOT security controls.
   protected readonly showAdminNav = computed(() =>
     this.authService.hasRole(AppRoles.Admin)
   );
@@ -35,12 +35,12 @@ export class AppComponent {
     this.authService.hasPermission(AppPermissions.TicketsView)
   );
 
-  protected readonly showReportsNav = computed(() =>
-    this.authService.hasPermission(AppPermissions.ReportsView)
-  );
-
   protected readonly showAuditNav = computed(() =>
     this.authService.hasPermission(AppPermissions.AuditView)
+  );
+
+  protected readonly showCustomersNav = computed(() =>
+    this.authService.hasPermission(AppPermissions.CustomersView)
   );
 
   protected readonly showUsersNav = computed(() =>

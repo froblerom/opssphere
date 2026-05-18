@@ -189,16 +189,18 @@ public sealed class CustomerManagementApiTests
     }
 
     [Fact]
-    public async Task CustomerTicketsPlaceholder_ReturnsEmptyList()
+    public async Task CustomerTickets_ReturnsSeededDemoHistory()
     {
         await using var factory = await CustomerApiFactory.CreateAsync();
         var client = await CreateAuthenticatedClientAsync(factory, AdminEmail);
 
         var response = await client.GetAsync($"/api/customers/{SeedIds.Customers.NovaBankCustomer1}/tickets");
-        var tickets = await ReadDataAsync<IReadOnlyList<object>>(response);
+        var tickets = await ReadDataAsync<IReadOnlyList<CustomerTicketSummaryResponse>>(response);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Empty(tickets);
+        Assert.Equal(6, tickets.Count);
+        Assert.Contains(tickets, ticket => ticket.TicketNumber == "OPS-000001" && ticket.Status == "Open");
+        Assert.Contains(tickets, ticket => ticket.TicketNumber == "OPS-000006" && ticket.Status == "Closed");
     }
 
     [Fact]
@@ -285,6 +287,7 @@ public sealed class CustomerManagementApiTests
     private sealed record ApiErrorDetail(string? Field, string Message);
     private sealed record LoginData(string AccessToken);
     private sealed record CustomerResponse(Guid Id, Guid AccountId, string AccountCode, string AccountName, string FirstName, string LastName, string? Email, string? PhoneNumber, string? ExternalReference, bool IsActive);
+    private sealed record CustomerTicketSummaryResponse(Guid Id, string TicketNumber, string Status, string Priority, string SlaState, DateTime CreatedAt, DateTime? ResolvedAt, DateTime? ClosedAt);
 
     internal sealed class CustomerApiFactory : WebApplicationFactory<Program>
     {

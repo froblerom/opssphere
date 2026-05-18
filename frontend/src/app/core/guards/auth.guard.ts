@@ -44,11 +44,11 @@ export const permissionGuard: CanActivateFn = (route, state) => {
   };
 
   if (authService.currentProfile()) {
-    return isAllowed() ? true : router.createUrlTree(['/dashboard']);
+    return isAllowed() ? true : router.createUrlTree(['/access-denied']);
   }
 
   return authService.me().pipe(
-    map(() => (isAllowed() ? true : router.createUrlTree(['/dashboard']))),
+    map(() => (isAllowed() ? true : router.createUrlTree(['/access-denied']))),
     catchError(() => of(router.createUrlTree(['/login'], {
       queryParams: {
         returnUrl: state.url

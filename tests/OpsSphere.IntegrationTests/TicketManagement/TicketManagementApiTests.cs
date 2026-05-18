@@ -395,7 +395,7 @@ public sealed class TicketManagementApiTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var summary = await ReadDataAsync<SlaSummaryDto>(response);
-        Assert.Equal(1, summary.BreachedCount);
+        Assert.Equal(3, summary.BreachedCount);
     }
 
     [Fact]

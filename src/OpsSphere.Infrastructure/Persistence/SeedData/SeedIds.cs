@@ -119,4 +119,60 @@ public static class SeedIds
         public static readonly Guid AgentNovabankCreditCard = Guid.Parse("156aafc5-16ac-4883-8d63-c944bce1bda7");
         public static readonly Guid ViewerLatam = Guid.Parse("c1d256d9-9595-4dc4-84e0-234085d208a5");
     }
+
+    public static class Tickets
+    {
+        public static readonly Guid NovaBankOpen = Guid.Parse("314cdb81-8d1a-41c1-9a00-000000000001");
+        public static readonly Guid NovaBankAssigned = Guid.Parse("314cdb81-8d1a-41c1-9a00-000000000002");
+        public static readonly Guid NovaBankInProgress = Guid.Parse("314cdb81-8d1a-41c1-9a00-000000000003");
+        public static readonly Guid NovaBankEscalated = Guid.Parse("314cdb81-8d1a-41c1-9a00-000000000004");
+        public static readonly Guid NovaBankResolved = Guid.Parse("314cdb81-8d1a-41c1-9a00-000000000005");
+        public static readonly Guid NovaBankClosed = Guid.Parse("314cdb81-8d1a-41c1-9a00-000000000006");
+    }
+
+    public static class TicketSlaStates
+    {
+        public static readonly Guid NovaBankOpen = Guid.Parse("322cdb81-8d1a-41c1-9a00-000000000001");
+        public static readonly Guid NovaBankAssigned = Guid.Parse("322cdb81-8d1a-41c1-9a00-000000000002");
+        public static readonly Guid NovaBankInProgress = Guid.Parse("322cdb81-8d1a-41c1-9a00-000000000003");
+        public static readonly Guid NovaBankEscalated = Guid.Parse("322cdb81-8d1a-41c1-9a00-000000000004");
+        public static readonly Guid NovaBankResolved = Guid.Parse("322cdb81-8d1a-41c1-9a00-000000000005");
+        public static readonly Guid NovaBankClosed = Guid.Parse("322cdb81-8d1a-41c1-9a00-000000000006");
+    }
+
+    public static class TicketAssignments
+    {
+        public static readonly Guid NovaBankAssigned = Guid.Parse("333cdb81-8d1a-41c1-9a00-000000000002");
+        public static readonly Guid NovaBankInProgress = Guid.Parse("333cdb81-8d1a-41c1-9a00-000000000003");
+        public static readonly Guid NovaBankEscalated = Guid.Parse("333cdb81-8d1a-41c1-9a00-000000000004");
+        public static readonly Guid NovaBankResolved = Guid.Parse("333cdb81-8d1a-41c1-9a00-000000000005");
+        public static readonly Guid NovaBankClosed = Guid.Parse("333cdb81-8d1a-41c1-9a00-000000000006");
+    }
+
+    public static class TicketStatusHistory
+    {
+        public static readonly Guid NovaBankOpen = Guid.Parse("344cdb81-8d1a-41c1-9a00-000000000001");
+        public static readonly Guid NovaBankAssigned = Guid.Parse("344cdb81-8d1a-41c1-9a00-000000000002");
+        public static readonly Guid NovaBankInProgress = Guid.Parse("344cdb81-8d1a-41c1-9a00-000000000003");
+        public static readonly Guid NovaBankEscalated = Guid.Parse("344cdb81-8d1a-41c1-9a00-000000000004");
+        public static readonly Guid NovaBankResolved = Guid.Parse("344cdb81-8d1a-41c1-9a00-000000000005");
+        public static readonly Guid NovaBankClosed = Guid.Parse("344cdb81-8d1a-41c1-9a00-000000000006");
+    }
+
+    public static class TicketComments
+    {
+        public static readonly Guid NovaBankInProgress = Guid.Parse("355cdb81-8d1a-41c1-9a00-000000000003");
+        public static readonly Guid NovaBankEscalated = Guid.Parse("355cdb81-8d1a-41c1-9a00-000000000004");
+    }
+
+    public static class TicketEscalations
+    {
+        public static readonly Guid NovaBankEscalated = Guid.Parse("366cdb81-8d1a-41c1-9a00-000000000004");
+    }
+
+    public static class TicketResolutions
+    {
+        public static readonly Guid NovaBankResolved = Guid.Parse("377cdb81-8d1a-41c1-9a00-000000000005");
+        public static readonly Guid NovaBankClosed = Guid.Parse("377cdb81-8d1a-41c1-9a00-000000000006");
+    }
 }

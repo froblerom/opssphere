@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using OpsSphere.Domain.Entities;
+using OpsSphere.Domain.Enums;
 
 namespace OpsSphere.Infrastructure.Persistence.SeedData;
 
@@ -26,6 +27,7 @@ public sealed class OpsSphereDataSeeder
         await SeedUsersAsync(cancellationToken);
         await SeedUserRolesAsync(cancellationToken);
         await SeedUserScopesAsync(cancellationToken);
+        await SeedTicketsAsync(cancellationToken);
     }
 
     private async Task SeedRolesAsync(CancellationToken cancellationToken)
@@ -437,6 +439,188 @@ public sealed class OpsSphereDataSeeder
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task SeedTicketsAsync(CancellationToken cancellationToken)
+    {
+        var existingTicketIds = await dbContext.Tickets
+            .Select(t => t.Id)
+            .ToHashSetAsync(cancellationToken);
+        var existingSlaStateIds = await dbContext.TicketSlaStates
+            .Select(s => s.Id)
+            .ToHashSetAsync(cancellationToken);
+        var existingAssignmentIds = await dbContext.TicketAssignments
+            .Select(a => a.Id)
+            .ToHashSetAsync(cancellationToken);
+        var existingStatusHistoryIds = await dbContext.TicketStatusHistory
+            .Select(h => h.Id)
+            .ToHashSetAsync(cancellationToken);
+        var existingCommentIds = await dbContext.TicketComments
+            .Select(c => c.Id)
+            .ToHashSetAsync(cancellationToken);
+        var existingEscalationIds = await dbContext.TicketEscalations
+            .Select(e => e.Id)
+            .ToHashSetAsync(cancellationToken);
+        var existingResolutionIds = await dbContext.TicketResolutions
+            .Select(r => r.Id)
+            .ToHashSetAsync(cancellationToken);
+        var now = DateTime.UtcNow;
+
+        foreach (var ticketSeed in OpsSphereSeedData.Tickets)
+        {
+            var createdAt = now.AddHours(ticketSeed.CreatedHoursOffset);
+            var dueAt = now.AddHours(ticketSeed.SlaDueHoursOffset);
+            var completedAt = ticketSeed.Status is TicketStatus.Resolved or TicketStatus.Closed
+                ? now.AddHours(Math.Min(ticketSeed.SlaDueHoursOffset, -1))
+                : (DateTime?)null;
+
+            if (!existingTicketIds.Contains(ticketSeed.Id))
+            {
+                dbContext.Tickets.Add(new Ticket
+                {
+                    Id = ticketSeed.Id,
+                    TicketNumber = ticketSeed.TicketNumber,
+                    CustomerId = SeedIds.Customers.NovaBankCustomer1,
+                    RegionId = SeedIds.Regions.Latam,
+                    CountryId = SeedIds.Countries.Mexico,
+                    AccountId = SeedIds.Accounts.NovaBank,
+                    CampaignId = SeedIds.Campaigns.NovaBankCreditCard,
+                    CreatedByUserId = SeedIds.Users.AgentNovabank,
+                    AssignedAgentUserId = ticketSeed.AssignedAgentUserId,
+                    SupervisorUserId = ticketSeed.SupervisorUserId,
+                    Category = ticketSeed.Category,
+                    Priority = ticketSeed.Priority,
+                    Status = ticketSeed.Status,
+                    Subject = ticketSeed.Subject,
+                    Description = ticketSeed.Description,
+                    SlaState = ticketSeed.SlaState,
+                    SlaDueAt = dueAt,
+                    ResolvedAt = ticketSeed.Status is TicketStatus.Resolved or TicketStatus.Closed ? completedAt : null,
+                    ClosedAt = ticketSeed.Status == TicketStatus.Closed ? now.AddHours(-46) : null,
+                    IsEscalated = ticketSeed.IsEscalated,
+                    IsDeleted = false,
+                    CreatedAt = createdAt,
+                    UpdatedAt = ticketSeed.Status == TicketStatus.Open ? null : now.AddHours(-1)
+                });
+                existingTicketIds.Add(ticketSeed.Id);
+            }
+
+            if (!existingSlaStateIds.Contains(ticketSeed.SlaStateId))
+            {
+                dbContext.TicketSlaStates.Add(new TicketSlaState
+                {
+                    Id = ticketSeed.SlaStateId,
+                    TicketId = ticketSeed.Id,
+                    SlaPolicyId = ticketSeed.SlaPolicyId,
+                    StartedAt = createdAt,
+                    DueAt = dueAt,
+                    AtRiskThresholdPercent = 80,
+                    State = ticketSeed.SlaState.ToString(),
+                    LastEvaluatedAt = now,
+                    CompletedAt = completedAt,
+                    FinalState = ticketSeed.Status is TicketStatus.Resolved or TicketStatus.Closed
+                        ? SlaState.Completed.ToString()
+                        : null
+                });
+                existingSlaStateIds.Add(ticketSeed.SlaStateId);
+            }
+        }
+
+        AddStatusHistory(SeedIds.TicketStatusHistory.NovaBankOpen, SeedIds.Tickets.NovaBankOpen, null, TicketStatus.Open, "Seeded open demo ticket.", now.AddHours(-2));
+        AddStatusHistory(SeedIds.TicketStatusHistory.NovaBankAssigned, SeedIds.Tickets.NovaBankAssigned, TicketStatus.Open, TicketStatus.Assigned, "Seeded assigned demo ticket.", now.AddHours(-6));
+        AddStatusHistory(SeedIds.TicketStatusHistory.NovaBankInProgress, SeedIds.Tickets.NovaBankInProgress, TicketStatus.Assigned, TicketStatus.InProgress, "Seeded in-progress demo ticket.", now.AddHours(-10));
+        AddStatusHistory(SeedIds.TicketStatusHistory.NovaBankEscalated, SeedIds.Tickets.NovaBankEscalated, TicketStatus.InProgress, TicketStatus.Escalated, "Seeded escalated demo ticket.", now.AddHours(-8));
+        AddStatusHistory(SeedIds.TicketStatusHistory.NovaBankResolved, SeedIds.Tickets.NovaBankResolved, TicketStatus.InProgress, TicketStatus.Resolved, "Seeded resolved demo ticket.", now.AddHours(-22));
+        AddStatusHistory(SeedIds.TicketStatusHistory.NovaBankClosed, SeedIds.Tickets.NovaBankClosed, TicketStatus.Resolved, TicketStatus.Closed, "Seeded closed demo ticket.", now.AddHours(-46));
+
+        AddAssignment(SeedIds.TicketAssignments.NovaBankAssigned, SeedIds.Tickets.NovaBankAssigned, now.AddHours(-6));
+        AddAssignment(SeedIds.TicketAssignments.NovaBankInProgress, SeedIds.Tickets.NovaBankInProgress, now.AddHours(-11));
+        AddAssignment(SeedIds.TicketAssignments.NovaBankEscalated, SeedIds.Tickets.NovaBankEscalated, now.AddHours(-15));
+        AddAssignment(SeedIds.TicketAssignments.NovaBankResolved, SeedIds.Tickets.NovaBankResolved, now.AddHours(-28));
+        AddAssignment(SeedIds.TicketAssignments.NovaBankClosed, SeedIds.Tickets.NovaBankClosed, now.AddHours(-70));
+
+        AddComment(SeedIds.TicketComments.NovaBankInProgress, SeedIds.Tickets.NovaBankInProgress, "Customer identity was verified with fictional account data.", now.AddHours(-9));
+        AddComment(SeedIds.TicketComments.NovaBankEscalated, SeedIds.Tickets.NovaBankEscalated, "Escalated for supervisor review because the demo SLA is breached.", now.AddHours(-7));
+
+        if (!existingEscalationIds.Contains(SeedIds.TicketEscalations.NovaBankEscalated))
+        {
+            dbContext.TicketEscalations.Add(new TicketEscalation
+            {
+                Id = SeedIds.TicketEscalations.NovaBankEscalated,
+                TicketId = SeedIds.Tickets.NovaBankEscalated,
+                EscalatedByUserId = SeedIds.Users.AgentNovabank,
+                EscalationReason = "Supervisor review required for fictional breached SLA demo ticket.",
+                IsActive = true,
+                CreatedAt = now.AddHours(-7)
+            });
+        }
+
+        AddResolution(SeedIds.TicketResolutions.NovaBankResolved, SeedIds.Tickets.NovaBankResolved, "Fictional card limit update was completed.", "DemoResolved", "Completed", now.AddHours(-22));
+        AddResolution(SeedIds.TicketResolutions.NovaBankClosed, SeedIds.Tickets.NovaBankClosed, "Fictional statement copy was provided.", "DemoClosed", "Completed", now.AddHours(-48));
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        void AddStatusHistory(Guid id, Guid ticketId, TicketStatus? previousStatus, TicketStatus newStatus, string reason, DateTime createdAt)
+        {
+            if (existingStatusHistoryIds.Contains(id)) return;
+            dbContext.TicketStatusHistory.Add(new TicketStatusHistory
+            {
+                Id = id,
+                TicketId = ticketId,
+                PreviousStatus = previousStatus?.ToString(),
+                NewStatus = newStatus.ToString(),
+                ChangedByUserId = SeedIds.Users.AgentNovabank,
+                ChangeReason = reason,
+                CreatedAt = createdAt
+            });
+            existingStatusHistoryIds.Add(id);
+        }
+
+        void AddAssignment(Guid id, Guid ticketId, DateTime createdAt)
+        {
+            if (existingAssignmentIds.Contains(id)) return;
+            dbContext.TicketAssignments.Add(new TicketAssignment
+            {
+                Id = id,
+                TicketId = ticketId,
+                NewAgentUserId = SeedIds.Users.AgentNovabank,
+                AssignedByUserId = SeedIds.Users.SupervisorNovabank,
+                AssignmentReason = "Seeded fictional demo assignment.",
+                CreatedAt = createdAt
+            });
+            existingAssignmentIds.Add(id);
+        }
+
+        void AddComment(Guid id, Guid ticketId, string body, DateTime createdAt)
+        {
+            if (existingCommentIds.Contains(id)) return;
+            dbContext.TicketComments.Add(new TicketComment
+            {
+                Id = id,
+                TicketId = ticketId,
+                AuthorUserId = SeedIds.Users.AgentNovabank,
+                Body = body,
+                IsDeleted = false,
+                CreatedAt = createdAt
+            });
+            existingCommentIds.Add(id);
+        }
+
+        void AddResolution(Guid id, Guid ticketId, string summary, string code, string finalSlaState, DateTime createdAt)
+        {
+            if (existingResolutionIds.Contains(id)) return;
+            dbContext.TicketResolutions.Add(new TicketResolution
+            {
+                Id = id,
+                TicketId = ticketId,
+                ResolvedByUserId = SeedIds.Users.AgentNovabank,
+                ResolutionSummary = summary,
+                ResolutionCode = code,
+                FinalSlaState = finalSlaState,
+                CreatedAt = createdAt
+            });
+            existingResolutionIds.Add(id);
+        }
     }
 
     private async Task<Dictionary<string, Role>> LoadRolesByNameAsync(CancellationToken cancellationToken) =>

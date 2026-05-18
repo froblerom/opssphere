@@ -1,3 +1,5 @@
+using OpsSphere.Domain.Enums;
+
 namespace OpsSphere.Infrastructure.Persistence.SeedData;
 
 public static class OpsSphereSeedData
@@ -161,7 +163,123 @@ public static class OpsSphereSeedData
         UserScopeSeed.ForRegion(SeedIds.UserScopes.ViewerLatam, "viewer.latam@opssphere.local", "LATAM")
     ];
 
+    public static readonly IReadOnlyList<TicketSeed> Tickets =
+    [
+        new(
+            SeedIds.Tickets.NovaBankOpen,
+            SeedIds.TicketSlaStates.NovaBankOpen,
+            "OPS-000001",
+            TicketStatus.Open,
+            TicketPriority.Normal,
+            SlaState.WithinSla,
+            null,
+            "Billing Question",
+            "Clarify recent credit card fee",
+            "Customer asked for clarification about a recent fictional credit card fee.",
+            -2,
+            20,
+            false,
+            null,
+            null),
+        new(
+            SeedIds.Tickets.NovaBankAssigned,
+            SeedIds.TicketSlaStates.NovaBankAssigned,
+            "OPS-000002",
+            TicketStatus.Assigned,
+            TicketPriority.High,
+            SlaState.AtRisk,
+            SeedIds.SlaPolicies.HighPriorityDefault,
+            "Payment Review",
+            "Review pending payment adjustment",
+            "Customer needs a fictional payment adjustment reviewed by the card support team.",
+            -7,
+            1,
+            false,
+            SeedIds.Users.AgentNovabank,
+            SeedIds.Users.SupervisorNovabank),
+        new(
+            SeedIds.Tickets.NovaBankInProgress,
+            SeedIds.TicketSlaStates.NovaBankInProgress,
+            "OPS-000003",
+            TicketStatus.InProgress,
+            TicketPriority.Critical,
+            SlaState.Breached,
+            SeedIds.SlaPolicies.CriticalPriorityDefault,
+            "Card Access",
+            "Restore card portal access",
+            "Customer cannot access a fictional card portal and needs agent follow-up.",
+            -12,
+            -2,
+            false,
+            SeedIds.Users.AgentNovabank,
+            SeedIds.Users.SupervisorNovabank),
+        new(
+            SeedIds.Tickets.NovaBankEscalated,
+            SeedIds.TicketSlaStates.NovaBankEscalated,
+            "OPS-000004",
+            TicketStatus.Escalated,
+            TicketPriority.Critical,
+            SlaState.Breached,
+            SeedIds.SlaPolicies.CriticalPriorityDefault,
+            "Dispute Escalation",
+            "Escalated charge dispute",
+            "Customer dispute requires supervisor review before the next update.",
+            -16,
+            -6,
+            true,
+            SeedIds.Users.AgentNovabank,
+            SeedIds.Users.SupervisorNovabank),
+        new(
+            SeedIds.Tickets.NovaBankResolved,
+            SeedIds.TicketSlaStates.NovaBankResolved,
+            "OPS-000005",
+            TicketStatus.Resolved,
+            TicketPriority.High,
+            SlaState.Completed,
+            SeedIds.SlaPolicies.HighPriorityDefault,
+            "Limit Update",
+            "Resolved card limit update",
+            "Fictional card limit update was reviewed and resolved.",
+            -30,
+            -22,
+            false,
+            SeedIds.Users.AgentNovabank,
+            SeedIds.Users.SupervisorNovabank),
+        new(
+            SeedIds.Tickets.NovaBankClosed,
+            SeedIds.TicketSlaStates.NovaBankClosed,
+            "OPS-000006",
+            TicketStatus.Closed,
+            TicketPriority.Low,
+            SlaState.Completed,
+            SeedIds.SlaPolicies.LowPriorityDefault,
+            "Statement Copy",
+            "Closed statement copy request",
+            "Customer requested a fictional statement copy and the case was closed.",
+            -72,
+            -48,
+            false,
+            SeedIds.Users.AgentNovabank,
+            SeedIds.Users.SupervisorNovabank)
+    ];
+
     public sealed record CustomerSeed(Guid Id, string AccountCode, string FirstName, string LastName, string? Email, string? PhoneNumber, string? ExternalReference);
+    public sealed record TicketSeed(
+        Guid Id,
+        Guid SlaStateId,
+        string TicketNumber,
+        TicketStatus Status,
+        TicketPriority Priority,
+        SlaState SlaState,
+        Guid? SlaPolicyId,
+        string Category,
+        string Subject,
+        string Description,
+        int CreatedHoursOffset,
+        int SlaDueHoursOffset,
+        bool IsEscalated,
+        Guid? AssignedAgentUserId,
+        Guid? SupervisorUserId);
     public sealed record RoleSeed(Guid Id, string Name, string Description);
     public sealed record PermissionSeed(Guid Id, string Code, string Name, string Description);
     public sealed record UserSeed(Guid Id, string Email, string FirstName, string LastName, string DisplayName, string RoleName);

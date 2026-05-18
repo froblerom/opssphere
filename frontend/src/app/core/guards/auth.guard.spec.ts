@@ -87,7 +87,7 @@ describe('permissionGuard', () => {
     expect(result).toBeTrue();
   });
 
-  it('redirects authenticated users without permission to dashboard', () => {
+  it('redirects authenticated users without permission to access denied', () => {
     authService.getAccessToken.and.returnValue('jwt-token');
     authService.currentProfile.and.returnValue({ id: 'user-1' });
     authService.hasAnyPermission.and.returnValue(false);
@@ -98,7 +98,7 @@ describe('permissionGuard', () => {
       permissionGuard(routeWithData({ permissions: ['users.manage'], roles: ['Admin'] }), { url: '/admin/users/create' } as RouterStateSnapshot)
     );
 
-    expect(router.serializeUrl(result as ReturnType<Router['createUrlTree']>)).toBe('/dashboard');
+    expect(router.serializeUrl(result as ReturnType<Router['createUrlTree']>)).toBe('/access-denied');
   });
 
   it('loads the profile before evaluating permissions when needed', (done) => {

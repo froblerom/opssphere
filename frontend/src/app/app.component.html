@@ -6,7 +6,7 @@
   </div>
 
   @if (authService.isAuthenticated()) {
-    <!-- Role-aware navigation — UX only, not a security boundary -->
+    <!-- Role-aware navigation - UX only, not a security boundary -->
     <nav class="app-nav" aria-label="Main navigation">
       @if (showDashboardNav()) {
         <a mat-button routerLink="/dashboard">
@@ -20,10 +20,10 @@
           Tickets
         </a>
       }
-      @if (showReportsNav()) {
-        <a mat-button routerLink="/reports">
-          <mat-icon aria-hidden="true">bar_chart</mat-icon>
-          Reports
+      @if (showCustomersNav()) {
+        <a mat-button routerLink="/customers">
+          <mat-icon aria-hidden="true">contacts</mat-icon>
+          Customers
         </a>
       }
       @if (showAuditNav()) {

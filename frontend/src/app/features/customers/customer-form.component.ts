@@ -88,7 +88,7 @@ export class CustomerFormComponent implements OnInit {
     accountId: ['', Validators.required],
     firstName: ['', [Validators.required, Validators.maxLength(100)]],
     lastName: ['', [Validators.required, Validators.maxLength(100)]],
-    email: ['', Validators.maxLength(256)],
+    email: ['', [Validators.email, Validators.maxLength(256)]],
     phoneNumber: ['', Validators.maxLength(50)],
     externalReference: ['', Validators.maxLength(100)]
   });

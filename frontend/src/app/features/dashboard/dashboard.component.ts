@@ -3,9 +3,12 @@ import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
+import { forkJoin } from 'rxjs';
 
 import { SafeApiError } from '../../core/models/api-error.models';
 import { ApiErrorParserService } from '../../core/services/api-error-parser.service';
+import { Account, Campaign, Country, Region } from '../organization/organization.models';
+import { OrganizationService } from '../organization/organization.service';
 import {
   DashboardEntityGroupItem,
   DashboardFilters,
@@ -51,23 +54,35 @@ import { DashboardService } from './dashboard.service';
         </label>
 
         <label>
-          Region ID
-          <input name="regionId" type="text" [(ngModel)]="filters.regionId" />
+          Region
+          <select name="regionId" [(ngModel)]="filters.regionId" (change)="onScopeFilterChange('region')">
+            <option value="">All</option>
+            <option *ngFor="let region of regions" [value]="region.id">{{ region.name }}</option>
+          </select>
         </label>
 
         <label>
-          Country ID
-          <input name="countryId" type="text" [(ngModel)]="filters.countryId" />
+          Country
+          <select name="countryId" [(ngModel)]="filters.countryId" (change)="onScopeFilterChange('country')">
+            <option value="">All</option>
+            <option *ngFor="let country of filteredCountries()" [value]="country.id">{{ country.name }}</option>
+          </select>
         </label>
 
         <label>
-          Account ID
-          <input name="accountId" type="text" [(ngModel)]="filters.accountId" />
+          Account
+          <select name="accountId" [(ngModel)]="filters.accountId" (change)="onScopeFilterChange('account')">
+            <option value="">All</option>
+            <option *ngFor="let account of filteredAccounts()" [value]="account.id">{{ account.name }}</option>
+          </select>
         </label>
 
         <label>
-          Campaign ID
-          <input name="campaignId" type="text" [(ngModel)]="filters.campaignId" />
+          Campaign
+          <select name="campaignId" [(ngModel)]="filters.campaignId">
+            <option value="">All</option>
+            <option *ngFor="let campaign of filteredCampaigns()" [value]="campaign.id">{{ campaign.name }}</option>
+          </select>
         </label>
 
         <label>
@@ -324,17 +339,23 @@ import { DashboardService } from './dashboard.service';
 export class DashboardComponent implements OnInit {
   private readonly dashboardService = inject(DashboardService);
   private readonly errorParser = inject(ApiErrorParserService);
+  private readonly organizationService = inject(OrganizationService);
 
   readonly statusOptions = ['Open', 'Assigned', 'InProgress', 'WaitingForCustomer', 'Escalated', 'Resolved', 'Closed'];
   readonly priorityOptions = ['Low', 'Normal', 'High', 'Critical'];
   readonly slaStateOptions = ['WithinSla', 'AtRisk', 'Breached', 'Completed'];
 
   dashboard: OperationalDashboard | null = null;
+  regions: Region[] = [];
+  countries: Country[] = [];
+  accounts: Account[] = [];
+  campaigns: Campaign[] = [];
   filters: DashboardFilters = {};
   loading = true;
   error: string | null = null;
 
   ngOnInit() {
+    this.loadScopeOptions();
     this.loadDashboard();
   }
 
@@ -359,6 +380,44 @@ export class DashboardComponent implements OnInit {
   resetFilters() {
     this.filters = {};
     this.loadDashboard();
+  }
+
+  onScopeFilterChange(level: 'region' | 'country' | 'account') {
+    if (level === 'region') {
+      this.filters.countryId = '';
+      this.filters.accountId = '';
+      this.filters.campaignId = '';
+    }
+
+    if (level === 'country') {
+      this.filters.accountId = '';
+      this.filters.campaignId = '';
+    }
+
+    if (level === 'account') {
+      this.filters.campaignId = '';
+    }
+  }
+
+  filteredCountries() {
+    return this.countries.filter((country) => !this.filters.regionId || country.regionId === this.filters.regionId);
+  }
+
+  filteredAccounts() {
+    return this.accounts.filter((account) => {
+      if (this.filters.countryId) return account.countryId === this.filters.countryId;
+      if (this.filters.regionId) return account.regionId === this.filters.regionId;
+      return true;
+    });
+  }
+
+  filteredCampaigns() {
+    return this.campaigns.filter((campaign) => {
+      if (this.filters.accountId) return campaign.accountId === this.filters.accountId;
+      if (this.filters.countryId) return campaign.countryId === this.filters.countryId;
+      if (this.filters.regionId) return campaign.regionId === this.filters.regionId;
+      return true;
+    });
   }
 
   isEmpty(dashboard: OperationalDashboard) {
@@ -422,6 +481,25 @@ export class DashboardComponent implements OnInit {
     Object.entries(source).forEach(([key, value]) => {
       if (allowedKeys.has(key) && value !== undefined && value !== null && value !== '') {
         target[key] = value as string | boolean;
+      }
+    });
+  }
+
+  private loadScopeOptions() {
+    forkJoin({
+      regions: this.organizationService.getRegions(),
+      countries: this.organizationService.getCountries(),
+      accounts: this.organizationService.getAccounts(),
+      campaigns: this.organizationService.getCampaigns()
+    }).subscribe({
+      next: ({ regions, countries, accounts, campaigns }) => {
+        this.regions = regions.filter((item) => item.isActive);
+        this.countries = countries.filter((item) => item.isActive);
+        this.accounts = accounts.filter((item) => item.isActive);
+        this.campaigns = campaigns.filter((item) => item.isActive);
+      },
+      error: () => {
+        // Scope dropdowns are a demo usability aid; backend filters remain source of truth.
       }
     });
   }
