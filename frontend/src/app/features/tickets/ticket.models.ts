@@ -23,6 +23,8 @@ export interface TicketDetail extends TicketListItem {
   slaDueAt?: string | null;
   createdByUserId: string;
   updatedAt?: string | null;
+  resolvedAt?: string | null;
+  closedAt?: string | null;
 }
 
 export interface CreateTicketRequest {
@@ -142,4 +144,39 @@ export interface EscalationQueueItemDto {
   escalatedByUserId: string;
   escalatedByName: string;
   escalationReason: string;
+}
+
+export interface ResolveTicketRequest {
+  resolutionSummary: string;
+  resolutionCode?: string | null;
+}
+
+export interface ResolveTicketResponse {
+  ticketId: string;
+  ticketNumber: string;
+  resolutionId: string;
+  previousStatus: string;
+  newStatus: string;
+  finalSlaState: string;
+  resolvedAt: string;
+  message: string;
+}
+
+export interface CloseTicketResponse {
+  ticketId: string;
+  ticketNumber: string;
+  previousStatus: string;
+  newStatus: string;
+  closedAt: string;
+  message: string;
+}
+
+export interface TicketStatusHistoryItemDto {
+  id: string;
+  ticketId: string;
+  previousStatus?: string | null;
+  newStatus: string;
+  changedByUserId: string;
+  changeReason?: string | null;
+  createdAt: string;
 }

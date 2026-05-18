@@ -10,15 +10,15 @@ import { TicketCommentDto, TicketDetail } from './ticket.models';
 import { TicketService } from './ticket.service';
 
 describe('TicketDetailComponent', () => {
-  let ticketService: jasmine.SpyObj<Pick<TicketService, 'getTicket' | 'getEligibleAgents' | 'assignTicket' | 'updateTicketStatus' | 'updateTicketPriority' | 'getComments' | 'addComment' | 'escalateTicket'>>;
+  let ticketService: jasmine.SpyObj<Pick<TicketService, 'getTicket' | 'getEligibleAgents' | 'assignTicket' | 'updateTicketStatus' | 'updateTicketPriority' | 'getComments' | 'addComment' | 'escalateTicket' | 'resolveTicket' | 'closeTicket' | 'getTicketHistory'>>;
   let authService: jasmine.SpyObj<Pick<AuthService, 'hasPermission'>>;
   let errorParser: jasmine.SpyObj<Pick<ApiErrorParserService, 'parse'>>;
   let fixture: ComponentFixture<TicketDetailComponent>;
 
   beforeEach(() => {
-    ticketService = jasmine.createSpyObj<Pick<TicketService, 'getTicket' | 'getEligibleAgents' | 'assignTicket' | 'updateTicketStatus' | 'updateTicketPriority' | 'getComments' | 'addComment' | 'escalateTicket'>>(
+    ticketService = jasmine.createSpyObj<Pick<TicketService, 'getTicket' | 'getEligibleAgents' | 'assignTicket' | 'updateTicketStatus' | 'updateTicketPriority' | 'getComments' | 'addComment' | 'escalateTicket' | 'resolveTicket' | 'closeTicket' | 'getTicketHistory'>>(
       'TicketService',
-      ['getTicket', 'getEligibleAgents', 'assignTicket', 'updateTicketStatus', 'updateTicketPriority', 'getComments', 'addComment', 'escalateTicket']
+      ['getTicket', 'getEligibleAgents', 'assignTicket', 'updateTicketStatus', 'updateTicketPriority', 'getComments', 'addComment', 'escalateTicket', 'resolveTicket', 'closeTicket', 'getTicketHistory']
     );
     authService = jasmine.createSpyObj<Pick<AuthService, 'hasPermission'>>('AuthService', ['hasPermission']);
     errorParser = jasmine.createSpyObj<Pick<ApiErrorParserService, 'parse'>>('ApiErrorParserService', ['parse']);
@@ -32,6 +32,7 @@ describe('TicketDetailComponent', () => {
       }
     ]));
     ticketService.getComments.and.returnValue(of([]));
+    ticketService.getTicketHistory.and.returnValue(of([]));
     errorParser.parse.and.returnValue({ code: 'bad_request', message: 'Request failed.', details: [] });
 
     TestBed.configureTestingModule({

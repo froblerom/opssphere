@@ -8,7 +8,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { SafeApiError } from '../../core/models/api-error.models';
 import { ApiErrorParserService } from '../../core/services/api-error-parser.service';
 import { TicketService } from './ticket.service';
-import { EligibleAgentDto, TicketCommentDto, TicketDetail } from './ticket.models';
+import { EligibleAgentDto, TicketCommentDto, TicketDetail, TicketStatusHistoryItemDto } from './ticket.models';
 
 @Component({
   selector: 'app-ticket-detail',
@@ -198,6 +198,72 @@ import { EligibleAgentDto, TicketCommentDto, TicketDetail } from './ticket.model
           </form>
         </section>
 
+        <section *ngIf="canShowResolve" class="resolve-section" aria-labelledby="resolve-title">
+          <h2 id="resolve-title">Resolve Ticket</h2>
+
+          <form [formGroup]="resolveForm" (ngSubmit)="resolveTicket()">
+            <div class="form-group">
+              <label for="resolutionSummary">Resolution Summary</label>
+              <textarea id="resolutionSummary" formControlName="resolutionSummary" rows="4" maxlength="2000" required></textarea>
+              <div *ngIf="resolveFieldError('resolutionSummary')" class="field-error">
+                {{ resolveFieldError('resolutionSummary') }}
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="resolutionCode">Resolution Code (optional)</label>
+              <input type="text" id="resolutionCode" formControlName="resolutionCode" maxlength="100" />
+              <div *ngIf="resolveFieldError('resolutionCode')" class="field-error">
+                {{ resolveFieldError('resolutionCode') }}
+              </div>
+            </div>
+
+            <div *ngIf="resolveError" class="error">{{ resolveError }}</div>
+
+            <button
+              type="submit"
+              class="btn btn-primary"
+              [disabled]="resolveSubmitting || resolveForm.invalid"
+            >
+              {{ resolveSubmitting ? 'Resolving...' : 'Resolve Ticket' }}
+            </button>
+          </form>
+        </section>
+
+        <section *ngIf="canShowClose" class="close-section" aria-labelledby="close-title">
+          <h2 id="close-title">Close Ticket</h2>
+
+          <div *ngIf="closeError" class="error">{{ closeError }}</div>
+
+          <button
+            class="btn btn-primary"
+            (click)="closeTicket()"
+            [disabled]="closeSubmitting"
+          >
+            {{ closeSubmitting ? 'Closing...' : 'Close Ticket' }}
+          </button>
+        </section>
+
+        <section *ngIf="canShowHistory" class="history-section" aria-labelledby="history-title">
+          <h2 id="history-title">Status History</h2>
+
+          <div *ngIf="historyError" class="error">{{ historyError }}</div>
+
+          <div *ngIf="statusHistory.length > 0; else noHistory" class="history-list">
+            <article *ngFor="let item of statusHistory" class="history-item">
+              <div>
+                <strong>{{ item.previousStatus ?? '—' }} → {{ item.newStatus }}</strong>
+              </div>
+              <div *ngIf="item.changeReason">Reason: {{ item.changeReason }}</div>
+              <div>{{ item.createdAt | date:'medium' }}</div>
+            </article>
+          </div>
+
+          <ng-template #noHistory>
+            <p>No status history yet.</p>
+          </ng-template>
+        </section>
+
         <section *ngIf="canShowComments" class="comments-section" aria-labelledby="comments-title">
           <h2 id="comments-title">Internal Comments</h2>
 
@@ -254,6 +320,7 @@ export class TicketDetailComponent implements OnInit {
   ticket: TicketDetail | null = null;
   eligibleAgents: EligibleAgentDto[] = [];
   comments: TicketCommentDto[] = [];
+  statusHistory: TicketStatusHistoryItemDto[] = [];
   loading = true;
   assignmentLoading = false;
   assignmentSubmitting = false;
@@ -261,6 +328,8 @@ export class TicketDetailComponent implements OnInit {
   prioritySubmitting = false;
   commentSubmitting = false;
   escalationSubmitting = false;
+  resolveSubmitting = false;
+  closeSubmitting = false;
   error: string | null = null;
   assignmentError: string | null = null;
   assignmentLoadError: string | null = null;
@@ -268,11 +337,15 @@ export class TicketDetailComponent implements OnInit {
   priorityError: string | null = null;
   commentError: string | null = null;
   escalationError: string | null = null;
+  resolveError: string | null = null;
+  closeError: string | null = null;
+  historyError: string | null = null;
   assignmentFieldErrors: Record<string, string> = {};
   statusFieldErrors: Record<string, string> = {};
   priorityFieldErrors: Record<string, string> = {};
   commentFieldErrors: Record<string, string> = {};
   escalationFieldErrors: Record<string, string> = {};
+  resolveFieldErrors: Record<string, string> = {};
 
   assignmentForm = this.fb.group({
     targetAgentUserId: ['', Validators.required],
@@ -297,6 +370,11 @@ export class TicketDetailComponent implements OnInit {
     escalationReason: ['', [Validators.required, Validators.maxLength(1000)]]
   });
 
+  resolveForm = this.fb.group({
+    resolutionSummary: ['', [Validators.required, Validators.maxLength(2000)]],
+    resolutionCode: ['', Validators.maxLength(100)]
+  });
+
   get canShowAssignment() {
     return this.canAssignTickets && this.ticket?.status !== 'Closed';
   }
@@ -314,6 +392,20 @@ export class TicketDetailComponent implements OnInit {
       && this.ticket?.status !== 'Closed'
       && this.ticket?.status !== 'Escalated'
       && this.ticket?.status !== 'Resolved';
+  }
+
+  get canShowResolve() {
+    return this.authService.hasPermission(AppPermissions.TicketsResolve)
+      && !['Resolved', 'Closed'].includes(this.ticket?.status ?? '');
+  }
+
+  get canShowClose() {
+    return this.authService.hasPermission(AppPermissions.TicketsClose)
+      && this.ticket?.status === 'Resolved';
+  }
+
+  get canShowHistory() {
+    return this.authService.hasPermission(AppPermissions.TicketsHistoryView);
   }
 
   get canShowComments() {
@@ -348,6 +440,7 @@ export class TicketDetailComponent implements OnInit {
         this.loading = false;
         this.loadEligibleAgentsIfAllowed();
         this.loadCommentsIfAllowed();
+        this.loadHistoryIfAllowed();
       },
       error: () => {
         this.error = 'Ticket not found.';
@@ -374,6 +467,10 @@ export class TicketDetailComponent implements OnInit {
 
   escalationFieldError(name: string): string | null {
     return this.escalationFieldErrors[name] ?? null;
+  }
+
+  resolveFieldError(name: string): string | null {
+    return this.resolveFieldErrors[name] ?? null;
   }
 
   assignTicket() {
@@ -561,6 +658,79 @@ export class TicketDetailComponent implements OnInit {
     });
   }
 
+  resolveTicket() {
+    if (!this.ticket || this.resolveSubmitting) return;
+
+    this.resolveError = null;
+    this.resolveFieldErrors = {};
+
+    const summary = (this.resolveForm.controls.resolutionSummary.value ?? '').trim();
+    if (!summary) {
+      this.resolveFieldErrors = { resolutionSummary: 'Resolution summary is required.' };
+      return;
+    }
+
+    if (summary.length > 2000) {
+      this.resolveFieldErrors = { resolutionSummary: 'Resolution summary must be 2000 characters or fewer.' };
+      return;
+    }
+
+    const code = (this.resolveForm.controls.resolutionCode.value ?? '').trim() || null;
+    if (code && code.length > 100) {
+      this.resolveFieldErrors = { resolutionCode: 'Resolution code must be 100 characters or fewer.' };
+      return;
+    }
+
+    this.resolveSubmitting = true;
+
+    this.ticketService.resolveTicket(this.ticket.id, summary, code).subscribe({
+      next: (response) => {
+        this.ticket = {
+          ...this.ticket!,
+          status: response.newStatus,
+          resolvedAt: response.resolvedAt
+        };
+        this.resolveForm.reset({ resolutionSummary: '', resolutionCode: '' });
+        this.resolveError = null;
+        this.resolveFieldErrors = {};
+        this.resolveSubmitting = false;
+        this.loadHistoryIfAllowed();
+      },
+      error: (err) => {
+        const parsed = this.errorParser.parse(err);
+        const fieldDetails = parsed.details.filter((d) => d.field);
+        this.resolveFieldErrors = Object.fromEntries(fieldDetails.map((d) => [d.field!, d.message]));
+        this.resolveError = fieldDetails.length === parsed.details.length && parsed.details.length > 0 ? null : parsed.message;
+        this.resolveSubmitting = false;
+      }
+    });
+  }
+
+  closeTicket() {
+    if (!this.ticket || this.closeSubmitting) return;
+
+    this.closeError = null;
+    this.closeSubmitting = true;
+
+    this.ticketService.closeTicket(this.ticket.id).subscribe({
+      next: (response) => {
+        this.ticket = {
+          ...this.ticket!,
+          status: response.newStatus,
+          closedAt: response.closedAt
+        };
+        this.closeError = null;
+        this.closeSubmitting = false;
+        this.loadHistoryIfAllowed();
+      },
+      error: (err) => {
+        const parsed = this.errorParser.parse(err);
+        this.closeError = parsed.message;
+        this.closeSubmitting = false;
+      }
+    });
+  }
+
   private loadEligibleAgentsIfAllowed() {
     if (!this.ticket || !this.canShowAssignment) return;
 
@@ -592,6 +762,21 @@ export class TicketDetailComponent implements OnInit {
         const parsed: SafeApiError = this.errorParser.parse(err);
         this.commentError = parsed.message;
         this.comments = [];
+      }
+    });
+  }
+
+  private loadHistoryIfAllowed() {
+    if (!this.ticket || !this.canShowHistory) return;
+
+    this.ticketService.getTicketHistory(this.ticket.id).subscribe({
+      next: (history) => {
+        this.statusHistory = history;
+      },
+      error: (err) => {
+        const parsed: SafeApiError = this.errorParser.parse(err);
+        this.historyError = parsed.message;
+        this.statusHistory = [];
       }
     });
   }

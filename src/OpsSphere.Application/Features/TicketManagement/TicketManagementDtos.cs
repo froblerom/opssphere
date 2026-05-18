@@ -58,7 +58,9 @@ public sealed record TicketDetailDto(
     DateTime CreatedAt,
     DateTime? UpdatedAt,
     Guid? AssignedAgentUserId,
-    string? AssignedAgentName);
+    string? AssignedAgentName,
+    DateTime? ResolvedAt,
+    DateTime? ClosedAt);
 
 public sealed record CreateTicketResult(
     Guid Id,
@@ -154,3 +156,21 @@ public sealed record EscalationQueueItemDto(
     Guid EscalatedByUserId,
     string EscalatedByName,
     string EscalationReason);
+
+public sealed record ResolveTicketRequest(string? ResolutionSummary, string? ResolutionCode);
+
+public sealed record ResolveTicketResponse(
+    Guid TicketId, string TicketNumber, Guid ResolutionId,
+    string PreviousStatus, string NewStatus,
+    string FinalSlaState, DateTime ResolvedAt, string Message);
+
+public sealed record CloseTicketResponse(
+    Guid TicketId, string TicketNumber,
+    string PreviousStatus, string NewStatus,
+    DateTime ClosedAt, string Message);
+
+public sealed record TicketStatusHistoryItemDto(
+    Guid Id, Guid TicketId,
+    string? PreviousStatus, string NewStatus,
+    Guid ChangedByUserId, string? ChangeReason,
+    DateTime CreatedAt);

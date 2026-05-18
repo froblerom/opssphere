@@ -714,6 +714,214 @@ public sealed class GetEscalationQueueQueryHandler(ITicketRepository repository)
         repository.GetEscalationQueueAsync(cancellationToken);
 }
 
+public sealed class ResolveTicketCommandHandler(
+    ITicketRepository repository,
+    ICurrentUserContext currentUser,
+    IAuditWriter auditWriter)
+{
+    private const int ResolutionSummaryMaxLength = 2000;
+    private const int ResolutionCodeMaxLength = 100;
+
+    public async Task<ResolveTicketResponse> HandleAsync(ResolveTicketCommand command, CancellationToken cancellationToken)
+    {
+        var (resolutionSummary, resolutionCode) = Validate(command);
+
+        var ticket = await repository.GetTicketForResolutionAsync(command.TicketId, cancellationToken)
+            ?? throw new NotFoundException("Ticket", command.TicketId);
+
+        if (ticket.Resolution is not null)
+            throw new BusinessRuleException("Ticket is already resolved.");
+
+        try
+        {
+            TicketWorkflowRules.EnsureCanResolve(ticket.Status, resolutionSummary);
+        }
+        catch (TicketDomainException ex)
+        {
+            throw new BusinessRuleException(ex.Message);
+        }
+
+        var actorUserId = currentUser.UserId ?? throw new ValidationException("userId", "Authenticated user context is required.");
+        var previousStatus = ticket.Status;
+        var previousSlaState = ticket.SlaState;
+        var now = DateTime.UtcNow;
+
+        ticket.Status = TicketStatus.Resolved;
+        ticket.ResolvedAt = now;
+        ticket.UpdatedAt = now;
+        ticket.SlaState = SlaState.Completed;
+
+        if (ticket.SlaStateRecord is not null)
+        {
+            ticket.SlaStateRecord.State = SlaState.Completed.ToString();
+            ticket.SlaStateRecord.FinalState = previousSlaState.ToString();
+            ticket.SlaStateRecord.CompletedAt = now;
+        }
+
+        if (ticket.IsEscalated)
+        {
+            ticket.IsEscalated = false;
+        }
+
+        var resolution = new TicketResolution
+        {
+            Id = Guid.NewGuid(),
+            TicketId = ticket.Id,
+            ResolvedByUserId = actorUserId,
+            ResolutionSummary = TicketWorkflowRules.NormalizeResolutionSummary(resolutionSummary),
+            ResolutionCode = string.IsNullOrWhiteSpace(resolutionCode) ? null : resolutionCode.Trim(),
+            FinalSlaState = previousSlaState.ToString(),
+            CreatedAt = now
+        };
+
+        await repository.AddResolutionAsync(resolution, cancellationToken);
+
+        await repository.AddStatusHistoryAsync(new TicketStatusHistory
+        {
+            Id = Guid.NewGuid(),
+            TicketId = ticket.Id,
+            PreviousStatus = previousStatus.ToString(),
+            NewStatus = TicketStatus.Resolved.ToString(),
+            ChangedByUserId = actorUserId,
+            ChangeReason = "Ticket resolved",
+            CreatedAt = now
+        }, cancellationToken);
+
+        await repository.DeactivateActiveEscalationsAsync(ticket.Id, now, cancellationToken);
+
+        await auditWriter.WriteAsync(
+            "TicketResolved",
+            "Ticket",
+            ticket.Id,
+            TicketAuditJson.Serialize(new
+            {
+                previousStatus = previousStatus.ToString(),
+                slaState = previousSlaState.ToString()
+            }),
+            TicketAuditJson.Serialize(new
+            {
+                finalSlaState = previousSlaState.ToString(),
+                resolvedByUserId = actorUserId,
+                resolutionId = resolution.Id,
+                status = TicketStatus.Resolved.ToString()
+            }),
+            cancellationToken);
+
+        await repository.SaveChangesAsync(cancellationToken);
+
+        return new ResolveTicketResponse(
+            ticket.Id,
+            ticket.TicketNumber,
+            resolution.Id,
+            previousStatus.ToString(),
+            TicketStatus.Resolved.ToString(),
+            previousSlaState.ToString(),
+            now,
+            "Ticket resolved successfully.");
+    }
+
+    private static (string ResolutionSummary, string? ResolutionCode) Validate(ResolveTicketCommand command)
+    {
+        var failures = new List<ValidationFailure>();
+        if (command.TicketId == Guid.Empty) failures.Add(new ValidationFailure("ticketId", "Ticket is required."));
+
+        var resolutionSummary = command.ResolutionSummary?.Trim();
+        if (string.IsNullOrWhiteSpace(resolutionSummary))
+            failures.Add(new ValidationFailure("resolutionSummary", "Resolution summary is required."));
+        else if (resolutionSummary.Length > ResolutionSummaryMaxLength)
+            failures.Add(new ValidationFailure("resolutionSummary", $"Resolution summary must be {ResolutionSummaryMaxLength} characters or fewer."));
+
+        var resolutionCode = command.ResolutionCode?.Trim();
+        if (resolutionCode != null && resolutionCode.Length > ResolutionCodeMaxLength)
+            failures.Add(new ValidationFailure("resolutionCode", $"Resolution code must be {ResolutionCodeMaxLength} characters or fewer."));
+
+        if (failures.Count > 0) throw new ValidationException(failures);
+        return (resolutionSummary!, string.IsNullOrWhiteSpace(resolutionCode) ? null : resolutionCode);
+    }
+}
+
+public sealed class CloseTicketCommandHandler(
+    ITicketRepository repository,
+    ICurrentUserContext currentUser,
+    IAuditWriter auditWriter)
+{
+    public async Task<CloseTicketResponse> HandleAsync(CloseTicketCommand command, CancellationToken cancellationToken)
+    {
+        if (command.TicketId == Guid.Empty)
+            throw new ValidationException("ticketId", "Ticket is required.");
+
+        var ticket = await repository.GetTicketForAssignmentAsync(command.TicketId, cancellationToken)
+            ?? throw new NotFoundException("Ticket", command.TicketId);
+
+        try
+        {
+            TicketWorkflowRules.EnsureCanClose(ticket.Status);
+        }
+        catch (TicketDomainException ex)
+        {
+            throw new BusinessRuleException(ex.Message);
+        }
+
+        var actorUserId = currentUser.UserId ?? throw new ValidationException("userId", "Authenticated user context is required.");
+        var previousStatus = ticket.Status;
+        var now = DateTime.UtcNow;
+
+        ticket.Status = TicketStatus.Closed;
+        ticket.ClosedAt = now;
+        ticket.UpdatedAt = now;
+
+        await repository.AddStatusHistoryAsync(new TicketStatusHistory
+        {
+            Id = Guid.NewGuid(),
+            TicketId = ticket.Id,
+            PreviousStatus = previousStatus.ToString(),
+            NewStatus = TicketStatus.Closed.ToString(),
+            ChangedByUserId = actorUserId,
+            ChangeReason = "Ticket closed",
+            CreatedAt = now
+        }, cancellationToken);
+
+        await auditWriter.WriteAsync(
+            "TicketClosed",
+            "Ticket",
+            ticket.Id,
+            TicketAuditJson.Serialize(new
+            {
+                status = previousStatus.ToString()
+            }),
+            TicketAuditJson.Serialize(new
+            {
+                closedByUserId = actorUserId,
+                status = TicketStatus.Closed.ToString()
+            }),
+            cancellationToken);
+
+        await repository.SaveChangesAsync(cancellationToken);
+
+        return new CloseTicketResponse(
+            ticket.Id,
+            ticket.TicketNumber,
+            previousStatus.ToString(),
+            TicketStatus.Closed.ToString(),
+            now,
+            "Ticket closed successfully.");
+    }
+}
+
+public sealed class GetTicketStatusHistoryQueryHandler(ITicketRepository repository)
+{
+    public async Task<IReadOnlyList<TicketStatusHistoryItemDto>> HandleAsync(GetTicketStatusHistoryQuery query, CancellationToken cancellationToken)
+    {
+        if (query.TicketId == Guid.Empty)
+            throw new ValidationException("ticketId", "Ticket is required.");
+
+        var ticket = await repository.GetTicketForAssignmentAsync(query.TicketId, cancellationToken)
+            ?? throw new NotFoundException("Ticket", query.TicketId);
+
+        return await repository.GetTicketStatusHistoryAsync(ticket.Id, cancellationToken);
+    }
+}
+
 internal static class TicketValidation
 {
     public static (string Category, string Subject, string Description, TicketPriority Priority) Validate(
