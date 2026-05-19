@@ -176,6 +176,17 @@ dotnet run --project src/OpsSphere.Api
 - `GET /api/auth/me` should return 401 without a token and the current seeded profile with a valid token.
 - `GET /api/auth/protected-smoke` should return 401 without a token and 200 with a valid token.
 
+## Release and Testing Documentation
+
+| Document | Purpose |
+|---|---|
+| [docs/release/mvp-demo-script.md](docs/release/mvp-demo-script.md) | Guided demo walkthrough for all personas |
+| [docs/release/mvp-release-checklist.md](docs/release/mvp-release-checklist.md) | Final release gate checklist |
+| [docs/release/mvp-uat-checklist.md](docs/release/mvp-uat-checklist.md) | Role-based UAT checklist |
+| [docs/release/mvp-known-limitations.md](docs/release/mvp-known-limitations.md) | Intentional scope boundaries and deferrals |
+| [docs/testing/ci-validation.md](docs/testing/ci-validation.md) | GitHub Actions CI jobs, commands, and failure triage |
+| [docs/testing/mvp-regression-tests.md](docs/testing/mvp-regression-tests.md) | Automated integration test coverage description |
+
 ## Documentation Approach
 
 OpsSphere follows a practical enterprise documentation workflow inspired by:
