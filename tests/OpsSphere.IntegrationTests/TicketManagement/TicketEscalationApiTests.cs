@@ -1,20 +1,13 @@
-using System.Net;
-using System.Net.Http.Headers;
+﻿using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using OpsSphere.Domain.Entities;
 using OpsSphere.Domain.Enums;
 using OpsSphere.Infrastructure.Persistence;
 using OpsSphere.Infrastructure.Persistence.SeedData;
+using OpsSphere.IntegrationTests.TestInfrastructure;
 
 namespace OpsSphere.IntegrationTests.TicketManagement;
 
@@ -31,14 +24,14 @@ public sealed class TicketEscalationApiTests
     [Fact]
     public async Task Supervisor_CanEscalate_OpenTicket_Returns200()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Supervisor escalates open");
 
         var response = await EscalateAsync(supervisor, ticket.Id, "Customer impact requires supervisor attention");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var result = await ReadDataAsync<EscalateTicketResponse>(response);
+        var result = await OpsSphereSqliteFactory.ReadDataAsync<EscalateTicketResponse>(response);
         Assert.Equal(ticket.Id, result.TicketId);
         Assert.Equal(ticket.TicketNumber, result.TicketNumber);
         Assert.Equal("Open", result.PreviousStatus);
@@ -50,15 +43,15 @@ public sealed class TicketEscalationApiTests
     [Fact]
     public async Task Supervisor_CanEscalate_AssignedTicket_Returns200()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Supervisor escalates assigned");
         await SetTicketStatusAsync(factory, ticket.Id, TicketStatus.Assigned);
 
         var response = await EscalateAsync(supervisor, ticket.Id, "Assigned ticket needs escalation");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var result = await ReadDataAsync<EscalateTicketResponse>(response);
+        var result = await OpsSphereSqliteFactory.ReadDataAsync<EscalateTicketResponse>(response);
         Assert.Equal("Assigned", result.PreviousStatus);
         Assert.Equal("Escalated", result.NewStatus);
     }
@@ -66,52 +59,52 @@ public sealed class TicketEscalationApiTests
     [Fact]
     public async Task Supervisor_CanEscalate_InProgressTicket_Returns200()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Supervisor escalates in progress");
         await SetTicketStatusAsync(factory, ticket.Id, TicketStatus.InProgress);
 
         var response = await EscalateAsync(supervisor, ticket.Id, "Investigation needs leadership visibility");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var result = await ReadDataAsync<EscalateTicketResponse>(response);
+        var result = await OpsSphereSqliteFactory.ReadDataAsync<EscalateTicketResponse>(response);
         Assert.Equal("InProgress", result.PreviousStatus);
     }
 
     [Fact]
     public async Task Supervisor_CanEscalate_WaitingForCustomerTicket_Returns200()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Supervisor escalates waiting");
         await SetTicketStatusAsync(factory, ticket.Id, TicketStatus.WaitingForCustomer);
 
         var response = await EscalateAsync(supervisor, ticket.Id, "Customer-facing delay needs escalation");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var result = await ReadDataAsync<EscalateTicketResponse>(response);
+        var result = await OpsSphereSqliteFactory.ReadDataAsync<EscalateTicketResponse>(response);
         Assert.Equal("WaitingForCustomer", result.PreviousStatus);
     }
 
     [Fact]
     public async Task Agent_CanEscalate_WithinCampaignScope_Returns200()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "Agent escalates scoped ticket");
 
         var response = await EscalateAsync(agent, ticket.Id, "Agent needs supervisor support");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var result = await ReadDataAsync<EscalateTicketResponse>(response);
+        var result = await OpsSphereSqliteFactory.ReadDataAsync<EscalateTicketResponse>(response);
         Assert.Equal(ticket.Id, result.TicketId);
     }
 
     [Fact]
     public async Task Unauthenticated_CannotEscalate_Returns401()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Anonymous escalation forbidden");
         var anonymous = factory.CreateClient();
 
@@ -123,9 +116,9 @@ public sealed class TicketEscalationApiTests
     [Fact]
     public async Task Admin_CannotEscalate_Returns403()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
-        var admin = await CreateAuthenticatedClientAsync(factory, AdminEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
+        var admin = await factory.CreateAuthenticatedClientAsync(AdminEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Admin escalation forbidden");
 
         var response = await EscalateAsync(admin, ticket.Id, "Admin reason");
@@ -136,9 +129,9 @@ public sealed class TicketEscalationApiTests
     [Fact]
     public async Task OperationsManager_CannotEscalate_Returns403()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
-        var manager = await CreateAuthenticatedClientAsync(factory, ManagerEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
+        var manager = await factory.CreateAuthenticatedClientAsync(ManagerEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Manager escalation forbidden");
 
         var response = await EscalateAsync(manager, ticket.Id, "Manager reason");
@@ -149,9 +142,9 @@ public sealed class TicketEscalationApiTests
     [Fact]
     public async Task Viewer_CannotEscalate_Returns403()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
-        var viewer = await CreateAuthenticatedClientAsync(factory, ViewerEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
+        var viewer = await factory.CreateAuthenticatedClientAsync(ViewerEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Viewer escalation forbidden");
 
         var response = await EscalateAsync(viewer, ticket.Id, "Viewer reason");
@@ -162,14 +155,14 @@ public sealed class TicketEscalationApiTests
     [Fact]
     public async Task Escalate_EmptyReason_Returns400_WithValidationError()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Empty reason");
 
         var response = await EscalateAsync(supervisor, ticket.Id, string.Empty);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await ReadErrorAsync(response);
+        var error = await OpsSphereSqliteFactory.ReadErrorAsync(response);
         Assert.Equal("validation_error", error.Error.Code);
         Assert.Contains(error.Error.Details ?? [], d => d.Field == "escalationReason");
     }
@@ -177,14 +170,14 @@ public sealed class TicketEscalationApiTests
     [Fact]
     public async Task Escalate_WhitespaceReason_Returns400_WithValidationError()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Whitespace reason");
 
         var response = await EscalateAsync(supervisor, ticket.Id, "   ");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await ReadErrorAsync(response);
+        var error = await OpsSphereSqliteFactory.ReadErrorAsync(response);
         Assert.Equal("validation_error", error.Error.Code);
         Assert.Contains(error.Error.Details ?? [], d => d.Field == "escalationReason");
     }
@@ -192,14 +185,14 @@ public sealed class TicketEscalationApiTests
     [Fact]
     public async Task Escalate_TooLongReason_Returns400_WithValidationError()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Long reason");
 
         var response = await EscalateAsync(supervisor, ticket.Id, new string('a', 1001));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await ReadErrorAsync(response);
+        var error = await OpsSphereSqliteFactory.ReadErrorAsync(response);
         Assert.Equal("validation_error", error.Error.Code);
         Assert.Contains(error.Error.Details ?? [], d => d.Field == "escalationReason");
     }
@@ -207,8 +200,8 @@ public sealed class TicketEscalationApiTests
     [Fact]
     public async Task Escalate_CrossScopeTicket_Returns404()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var outOfScopeTicketId = await AddTicketDirectlyAsync(
             factory,
             SeedIds.Accounts.Streamly,
@@ -225,15 +218,15 @@ public sealed class TicketEscalationApiTests
     [Fact]
     public async Task Escalate_AlreadyEscalatedTicket_Returns400()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Already escalated");
         await AddEscalationDirectlyAsync(factory, ticket.Id, SeedIds.Users.SupervisorNovabank, "Existing escalation");
 
         var response = await EscalateAsync(supervisor, ticket.Id, "Duplicate escalation");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await ReadErrorAsync(response);
+        var error = await OpsSphereSqliteFactory.ReadErrorAsync(response);
         Assert.Equal("business_rule_violation", error.Error.Code);
         Assert.Contains("already", error.Error.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -241,15 +234,15 @@ public sealed class TicketEscalationApiTests
     [Fact]
     public async Task Escalate_ClosedTicket_Returns400()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Closed escalation");
         await SetTicketStatusAsync(factory, ticket.Id, TicketStatus.Closed);
 
         var response = await EscalateAsync(supervisor, ticket.Id, "Closed ticket reason");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await ReadErrorAsync(response);
+        var error = await OpsSphereSqliteFactory.ReadErrorAsync(response);
         Assert.Equal("business_rule_violation", error.Error.Code);
         Assert.Contains("closed", error.Error.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -257,15 +250,15 @@ public sealed class TicketEscalationApiTests
     [Fact]
     public async Task Escalate_ResolvedTicket_Returns400()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Resolved escalation");
         await SetTicketStatusAsync(factory, ticket.Id, TicketStatus.Resolved);
 
         var response = await EscalateAsync(supervisor, ticket.Id, "Resolved ticket reason");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await ReadErrorAsync(response);
+        var error = await OpsSphereSqliteFactory.ReadErrorAsync(response);
         Assert.Equal("business_rule_violation", error.Error.Code);
         Assert.Contains("resolved", error.Error.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -273,8 +266,8 @@ public sealed class TicketEscalationApiTests
     [Fact]
     public async Task Escalate_UpdatesStatusToEscalated()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Status persistence");
 
         await EscalateAsync(supervisor, ticket.Id, "Persist escalated status");
@@ -286,8 +279,8 @@ public sealed class TicketEscalationApiTests
     [Fact]
     public async Task Escalate_SetsIsEscalatedTrue()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Escalated flag");
 
         await EscalateAsync(supervisor, ticket.Id, "Persist escalated flag");
@@ -299,14 +292,14 @@ public sealed class TicketEscalationApiTests
     [Fact]
     public async Task Escalate_CreatesTicketEscalationRecord()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Escalation record");
 
         var response = await EscalateAsync(supervisor, ticket.Id, "Create escalation record");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var result = await ReadDataAsync<EscalateTicketResponse>(response);
+        var result = await OpsSphereSqliteFactory.ReadDataAsync<EscalateTicketResponse>(response);
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
         var escalation = await db.TicketEscalations.AsNoTracking().SingleAsync(e => e.Id == result.EscalationId);
@@ -321,14 +314,14 @@ public sealed class TicketEscalationApiTests
     [Fact]
     public async Task Escalate_StoresTrimmedEscalationReason()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Trim escalation reason");
 
         var response = await EscalateAsync(supervisor, ticket.Id, "  Trimmed escalation reason  ");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var result = await ReadDataAsync<EscalateTicketResponse>(response);
+        var result = await OpsSphereSqliteFactory.ReadDataAsync<EscalateTicketResponse>(response);
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
         var escalation = await db.TicketEscalations.AsNoTracking().SingleAsync(e => e.Id == result.EscalationId);
@@ -338,8 +331,8 @@ public sealed class TicketEscalationApiTests
     [Fact]
     public async Task Escalate_CreatesStatusHistoryRecord()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Escalation status history");
 
         await EscalateAsync(supervisor, ticket.Id, "History reason");
@@ -357,8 +350,8 @@ public sealed class TicketEscalationApiTests
     [Fact]
     public async Task Escalate_CreatesAuditLog_TicketEscalated()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Escalation audit");
 
         await EscalateAsync(supervisor, ticket.Id, "Audit reason");
@@ -377,8 +370,8 @@ public sealed class TicketEscalationApiTests
     [Fact]
     public async Task Escalate_AuditLogDoesNotContainReasonOrPii()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         const string sensitiveSubject = "EscalationSensitiveSubject-ABC123";
         const string sensitiveDescription = "EscalationSensitiveDescription-XYZ987";
         const string sensitiveReason = "EscalationSensitiveReason-SECRET456";
@@ -402,8 +395,8 @@ public sealed class TicketEscalationApiTests
     [Fact]
     public async Task Escalate_AuditLogPropertyShape_IsExpected()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Escalation audit shape");
 
         await EscalateAsync(supervisor, ticket.Id, "Audit shape reason");
@@ -426,8 +419,8 @@ public sealed class TicketEscalationApiTests
     [Fact]
     public async Task EscalationQueue_Supervisor_ReturnsScopedEscalations()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var inScopeTicketId = await AddTicketDirectlyAsync(factory, SeedIds.Accounts.NovaBank, SeedIds.Campaigns.NovaBankCreditCard, SeedIds.Customers.NovaBankCustomer1, TicketStatus.Open, "Supervisor queue scoped");
         var outOfScopeTicketId = await AddTicketDirectlyAsync(factory, SeedIds.Accounts.Shopora, SeedIds.Campaigns.ShoporaAccess, SeedIds.Customers.ShoporaCustomer1, TicketStatus.Open, "Supervisor queue out of scope");
         await AddEscalationDirectlyAsync(factory, inScopeTicketId, SeedIds.Users.SupervisorNovabank, "In-scope supervisor reason");
@@ -436,7 +429,7 @@ public sealed class TicketEscalationApiTests
         var response = await supervisor.GetAsync("/api/tickets/escalations");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var queue = await ReadDataAsync<IReadOnlyList<EscalationQueueItemDto>>(response);
+        var queue = await OpsSphereSqliteFactory.ReadDataAsync<IReadOnlyList<EscalationQueueItemDto>>(response);
         Assert.Contains(queue, item => item.TicketId == inScopeTicketId);
         Assert.DoesNotContain(queue, item => item.TicketId == outOfScopeTicketId);
     }
@@ -444,67 +437,67 @@ public sealed class TicketEscalationApiTests
     [Fact]
     public async Task EscalationQueue_OperationsManager_CanViewScopedEscalations()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var manager = await CreateAuthenticatedClientAsync(factory, ManagerEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var manager = await factory.CreateAuthenticatedClientAsync(ManagerEmail);
         var ticketId = await AddTicketDirectlyAsync(factory, SeedIds.Accounts.NovaBank, SeedIds.Campaigns.NovaBankCreditCard, SeedIds.Customers.NovaBankCustomer1, TicketStatus.Open, "Manager queue scoped");
         await AddEscalationDirectlyAsync(factory, ticketId, SeedIds.Users.SupervisorNovabank, "Manager visible reason");
 
         var response = await manager.GetAsync("/api/tickets/escalations");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var queue = await ReadDataAsync<IReadOnlyList<EscalationQueueItemDto>>(response);
+        var queue = await OpsSphereSqliteFactory.ReadDataAsync<IReadOnlyList<EscalationQueueItemDto>>(response);
         Assert.Contains(queue, item => item.TicketId == ticketId);
     }
 
     [Fact]
     public async Task EscalationQueue_Viewer_CanViewScopedEscalations()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var viewer = await CreateAuthenticatedClientAsync(factory, ViewerEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var viewer = await factory.CreateAuthenticatedClientAsync(ViewerEmail);
         var ticketId = await AddTicketDirectlyAsync(factory, SeedIds.Accounts.NovaBank, SeedIds.Campaigns.NovaBankCreditCard, SeedIds.Customers.NovaBankCustomer1, TicketStatus.Open, "Viewer queue scoped");
         await AddEscalationDirectlyAsync(factory, ticketId, SeedIds.Users.SupervisorNovabank, "Viewer visible reason");
 
         var response = await viewer.GetAsync("/api/tickets/escalations");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var queue = await ReadDataAsync<IReadOnlyList<EscalationQueueItemDto>>(response);
+        var queue = await OpsSphereSqliteFactory.ReadDataAsync<IReadOnlyList<EscalationQueueItemDto>>(response);
         Assert.Contains(queue, item => item.TicketId == ticketId);
     }
 
     [Fact]
     public async Task EscalationQueue_ExcludesNonEscalatedTickets()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticketId = await AddTicketDirectlyAsync(factory, SeedIds.Accounts.NovaBank, SeedIds.Campaigns.NovaBankCreditCard, SeedIds.Customers.NovaBankCustomer1, TicketStatus.Open, "Queue non-escalated excluded");
 
         var response = await supervisor.GetAsync("/api/tickets/escalations");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var queue = await ReadDataAsync<IReadOnlyList<EscalationQueueItemDto>>(response);
+        var queue = await OpsSphereSqliteFactory.ReadDataAsync<IReadOnlyList<EscalationQueueItemDto>>(response);
         Assert.DoesNotContain(queue, item => item.TicketId == ticketId);
     }
 
     [Fact]
     public async Task EscalationQueue_ExcludesOutOfScopeEscalations()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var outOfScopeTicketId = await AddTicketDirectlyAsync(factory, SeedIds.Accounts.Streamly, SeedIds.Campaigns.StreamlyCreator, SeedIds.Customers.StreamlyCustomer1, TicketStatus.Open, "Queue out-of-scope excluded");
         await AddEscalationDirectlyAsync(factory, outOfScopeTicketId, SeedIds.Users.SupervisorNovabank, "Out-of-scope reason");
 
         var response = await supervisor.GetAsync("/api/tickets/escalations");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var queue = await ReadDataAsync<IReadOnlyList<EscalationQueueItemDto>>(response);
+        var queue = await OpsSphereSqliteFactory.ReadDataAsync<IReadOnlyList<EscalationQueueItemDto>>(response);
         Assert.DoesNotContain(queue, item => item.TicketId == outOfScopeTicketId);
     }
 
     [Fact]
     public async Task EscalationQueue_ReturnsActiveEscalationsOnly()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var activeTicketId = await AddTicketDirectlyAsync(factory, SeedIds.Accounts.NovaBank, SeedIds.Campaigns.NovaBankCreditCard, SeedIds.Customers.NovaBankCustomer1, TicketStatus.Open, "Active escalation");
         var inactiveTicketId = await AddTicketDirectlyAsync(factory, SeedIds.Accounts.NovaBank, SeedIds.Campaigns.NovaBankCreditCard, SeedIds.Customers.NovaBankCustomer1, TicketStatus.Open, "Inactive escalation");
         await AddEscalationDirectlyAsync(factory, activeTicketId, SeedIds.Users.SupervisorNovabank, "Active reason", isActive: true);
@@ -513,7 +506,7 @@ public sealed class TicketEscalationApiTests
         var response = await supervisor.GetAsync("/api/tickets/escalations");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var queue = await ReadDataAsync<IReadOnlyList<EscalationQueueItemDto>>(response);
+        var queue = await OpsSphereSqliteFactory.ReadDataAsync<IReadOnlyList<EscalationQueueItemDto>>(response);
         Assert.Contains(queue, item => item.TicketId == activeTicketId);
         Assert.DoesNotContain(queue, item => item.TicketId == inactiveTicketId);
     }
@@ -521,8 +514,8 @@ public sealed class TicketEscalationApiTests
     [Fact]
     public async Task EscalationQueue_SortedNewestFirst()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var olderTicketId = await AddTicketDirectlyAsync(factory, SeedIds.Accounts.NovaBank, SeedIds.Campaigns.NovaBankCreditCard, SeedIds.Customers.NovaBankCustomer1, TicketStatus.Open, "Older escalation");
         var newerTicketId = await AddTicketDirectlyAsync(factory, SeedIds.Accounts.NovaBank, SeedIds.Campaigns.NovaBankCreditCard, SeedIds.Customers.NovaBankCustomer1, TicketStatus.Open, "Newer escalation");
         await AddEscalationDirectlyAsync(factory, olderTicketId, SeedIds.Users.SupervisorNovabank, "Older reason", DateTime.UtcNow.AddMinutes(-10));
@@ -531,7 +524,7 @@ public sealed class TicketEscalationApiTests
         var response = await supervisor.GetAsync("/api/tickets/escalations");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var queue = await ReadDataAsync<IReadOnlyList<EscalationQueueItemDto>>(response);
+        var queue = await OpsSphereSqliteFactory.ReadDataAsync<IReadOnlyList<EscalationQueueItemDto>>(response);
         Assert.True(queue.Count >= 2);
         Assert.Equal(newerTicketId, queue[0].TicketId);
         Assert.Equal(olderTicketId, queue[1].TicketId);
@@ -540,8 +533,8 @@ public sealed class TicketEscalationApiTests
     [Fact]
     public async Task EscalationQueue_IncludesEscalationReason()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         const string reason = "Queue should show operational escalation reason";
         var ticketId = await AddTicketDirectlyAsync(factory, SeedIds.Accounts.NovaBank, SeedIds.Campaigns.NovaBankCreditCard, SeedIds.Customers.NovaBankCustomer1, TicketStatus.Open, "Queue reason included");
         await AddEscalationDirectlyAsync(factory, ticketId, SeedIds.Users.SupervisorNovabank, reason);
@@ -549,7 +542,7 @@ public sealed class TicketEscalationApiTests
         var response = await supervisor.GetAsync("/api/tickets/escalations");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var queue = await ReadDataAsync<IReadOnlyList<EscalationQueueItemDto>>(response);
+        var queue = await OpsSphereSqliteFactory.ReadDataAsync<IReadOnlyList<EscalationQueueItemDto>>(response);
         var item = Assert.Single(queue, i => i.TicketId == ticketId);
         Assert.Equal(reason, item.EscalationReason);
         Assert.Equal("Lina Calderon", item.EscalatedByName);
@@ -560,15 +553,15 @@ public sealed class TicketEscalationApiTests
     [Fact]
     public async Task Escalate_BusinessRuleError_UsesCanonicalEnvelope()
     {
-        await using var factory = await TicketEscalationApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Escalation canonical envelope");
         await AddEscalationDirectlyAsync(factory, ticket.Id, SeedIds.Users.SupervisorNovabank, "Existing escalation");
 
         var response = await EscalateAsync(supervisor, ticket.Id, "Duplicate reason");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await ReadErrorAsync(response);
+        var error = await OpsSphereSqliteFactory.ReadErrorAsync(response);
         Assert.Equal("business_rule_violation", error.Error.Code);
         Assert.False(string.IsNullOrWhiteSpace(error.Error.Message));
         Assert.False(string.IsNullOrWhiteSpace(error.Error.CorrelationId));
@@ -620,11 +613,11 @@ public sealed class TicketEscalationApiTests
             description
         });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        return await ReadDataAsync<CreateTicketResult>(response);
+        return await OpsSphereSqliteFactory.ReadDataAsync<CreateTicketResult>(response);
     }
 
     private static async Task<Guid> AddTicketDirectlyAsync(
-        TicketEscalationApiFactory factory,
+        OpsSphereSqliteFactory factory,
         Guid accountId,
         Guid campaignId,
         Guid customerId,
@@ -686,7 +679,7 @@ public sealed class TicketEscalationApiTests
     }
 
     private static async Task<Guid> AddEscalationDirectlyAsync(
-        TicketEscalationApiFactory factory,
+        OpsSphereSqliteFactory factory,
         Guid ticketId,
         Guid escalatedByUserId,
         string escalationReason,
@@ -718,7 +711,7 @@ public sealed class TicketEscalationApiTests
         return escalationId;
     }
 
-    private static async Task SetTicketStatusAsync(TicketEscalationApiFactory factory, Guid ticketId, TicketStatus status)
+    private static async Task SetTicketStatusAsync(OpsSphereSqliteFactory factory, Guid ticketId, TicketStatus status)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
@@ -728,14 +721,14 @@ public sealed class TicketEscalationApiTests
         await db.SaveChangesAsync();
     }
 
-    private static async Task<Ticket> GetTicketAsync(TicketEscalationApiFactory factory, Guid ticketId)
+    private static async Task<Ticket> GetTicketAsync(OpsSphereSqliteFactory factory, Guid ticketId)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
         return await db.Tickets.AsNoTracking().SingleAsync(t => t.Id == ticketId);
     }
 
-    private static async Task<string> GetAuditPayloadAsync(TicketEscalationApiFactory factory, Guid ticketId)
+    private static async Task<string> GetAuditPayloadAsync(OpsSphereSqliteFactory factory, Guid ticketId)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
@@ -745,42 +738,6 @@ public sealed class TicketEscalationApiTests
 
         return $"{audit.PreviousValue}{audit.NewValue}";
     }
-
-    private static async Task<HttpClient> CreateAuthenticatedClientAsync(TicketEscalationApiFactory factory, string email)
-    {
-        var client = factory.CreateClient();
-        var loginResponse = await client.PostAsJsonAsync("/api/auth/login", new
-        {
-            email,
-            password = OpsSphereSeedData.LocalDemoPassword
-        });
-        loginResponse.EnsureSuccessStatusCode();
-        var loginBody = await ReadResponseAsync<ApiResponse<LoginData>>(loginResponse);
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", loginBody.Data.AccessToken);
-        return client;
-    }
-
-    private static async Task<T> ReadDataAsync<T>(HttpResponseMessage response)
-    {
-        var envelope = await ReadResponseAsync<ApiResponse<T>>(response);
-        return envelope.Data;
-    }
-
-    private static async Task<ApiErrorResponse> ReadErrorAsync(HttpResponseMessage response) =>
-        await ReadResponseAsync<ApiErrorResponse>(response);
-
-    private static async Task<T> ReadResponseAsync<T>(HttpResponseMessage response)
-    {
-        var json = await response.Content.ReadAsStringAsync();
-        var value = JsonSerializer.Deserialize<T>(json, JsonOptions);
-        return value ?? throw new InvalidOperationException($"Could not deserialize {typeof(T).Name} from {(int)response.StatusCode}: {json}");
-    }
-
-    private sealed record ApiResponse<T>(T Data);
-    private sealed record ApiErrorResponse(ApiError Error);
-    private sealed record ApiError(string Code, string Message, IReadOnlyList<ApiErrorDetail>? Details, string? CorrelationId);
-    private sealed record ApiErrorDetail(string? Field, string Message);
-    private sealed record LoginData(string AccessToken);
 
     private sealed record CreateTicketResult(
         Guid Id,
@@ -812,70 +769,4 @@ public sealed class TicketEscalationApiTests
         Guid EscalatedByUserId,
         string EscalatedByName,
         string EscalationReason);
-
-    internal sealed class TicketEscalationApiFactory : WebApplicationFactory<Program>
-    {
-        public const string JwtSigningKey = "integration-testing-only-fictional-jwt-signing-key";
-
-        private readonly SqliteConnection connection = new("Data Source=:memory:");
-
-        public static async Task<TicketEscalationApiFactory> CreateAsync()
-        {
-            ConfigureEnvironment();
-            var factory = new TicketEscalationApiFactory();
-            await factory.connection.OpenAsync();
-            await factory.InitializeDatabaseAsync();
-            return factory;
-        }
-
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureAppConfiguration((_, config) =>
-            {
-                config.AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["ConnectionStrings:DefaultConnection"] = "Server=(local);Database=OpsSphereTicketEscalationTests;Trusted_Connection=True;TrustServerCertificate=True;",
-                    ["SeedData:Enabled"] = "false",
-                    ["Jwt:Issuer"] = "OpsSphere.Tests",
-                    ["Jwt:Audience"] = "OpsSphere.Tests.Angular",
-                    ["Jwt:ExpirationMinutes"] = "60",
-                    ["Jwt:SigningKey"] = JwtSigningKey
-                });
-            });
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<IDbContextOptionsConfiguration<OpsSphereDbContext>>();
-                services.RemoveAll<DbContextOptions<OpsSphereDbContext>>();
-                services.AddDbContext<OpsSphereDbContext>(options => options.UseSqlite(connection));
-            });
-        }
-
-        private static void ConfigureEnvironment()
-        {
-            Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", "Server=(local);Database=OpsSphereTicketEscalationTests;Trusted_Connection=True;TrustServerCertificate=True;");
-            Environment.SetEnvironmentVariable("SeedData__Enabled", "false");
-            Environment.SetEnvironmentVariable("Jwt__Issuer", "OpsSphere.Tests");
-            Environment.SetEnvironmentVariable("Jwt__Audience", "OpsSphere.Tests.Angular");
-            Environment.SetEnvironmentVariable("Jwt__ExpirationMinutes", "60");
-            Environment.SetEnvironmentVariable("Jwt__SigningKey", JwtSigningKey);
-        }
-
-        public override async ValueTask DisposeAsync()
-        {
-            await connection.DisposeAsync();
-            await base.DisposeAsync();
-        }
-
-        private async Task InitializeDatabaseAsync()
-        {
-            using var scope = Services.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
-            await dbContext.Database.EnsureDeletedAsync();
-            await dbContext.Database.EnsureCreatedAsync();
-
-            var seeder = scope.ServiceProvider.GetRequiredService<OpsSphereDataSeeder>();
-            await seeder.SeedAsync();
-        }
-    }
 }

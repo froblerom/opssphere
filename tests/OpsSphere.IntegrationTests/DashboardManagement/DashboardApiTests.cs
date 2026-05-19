@@ -1,20 +1,13 @@
-using System.Net;
-using System.Net.Http.Headers;
+﻿using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using OpsSphere.Domain.Entities;
 using OpsSphere.Domain.Enums;
 using OpsSphere.Infrastructure.Persistence;
 using OpsSphere.Infrastructure.Persistence.SeedData;
+using OpsSphere.IntegrationTests.TestInfrastructure;
 
 namespace OpsSphere.IntegrationTests.DashboardManagement;
 
@@ -32,7 +25,7 @@ public sealed class DashboardApiTests
     [Fact]
     public async Task GetOperationalDashboard_WithoutAuth_Returns401()
     {
-        await using var factory = await DashboardApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
 
         var response = await factory.CreateClient().GetAsync("/api/dashboard/operational");
 
@@ -42,8 +35,8 @@ public sealed class DashboardApiTests
     [Fact]
     public async Task GetOperationalDashboard_WithAgent_Returns200()
     {
-        await using var factory = await DashboardApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
 
         var response = await agent.GetAsync("/api/dashboard/operational");
 
@@ -53,8 +46,8 @@ public sealed class DashboardApiTests
     [Fact]
     public async Task GetOperationalDashboard_WithViewer_Returns200()
     {
-        await using var factory = await DashboardApiFactory.CreateAsync();
-        var viewer = await CreateAuthenticatedClientAsync(factory, ViewerEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var viewer = await factory.CreateAuthenticatedClientAsync(ViewerEmail);
 
         var response = await viewer.GetAsync("/api/dashboard/operational");
 
@@ -64,12 +57,12 @@ public sealed class DashboardApiTests
     [Fact]
     public async Task GetOperationalDashboard_Manager_SeesOnlyRegionalTickets()
     {
-        await using var factory = await DashboardApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
         await AddTicketDirectlyAsync(factory, SeedIds.Accounts.NovaBank, SeedIds.Campaigns.NovaBankCreditCard, SeedIds.Customers.NovaBankCustomer1);
         await AddTicketDirectlyAsync(factory, SeedIds.Accounts.Streamly, SeedIds.Campaigns.StreamlyCreator, SeedIds.Customers.StreamlyCustomer1);
-        var manager = await CreateAuthenticatedClientAsync(factory, ManagerEmail);
+        var manager = await factory.CreateAuthenticatedClientAsync(ManagerEmail);
 
-        var dashboard = await ReadDataAsync<OperationalDashboardResponse>(
+        var dashboard = await OpsSphereSqliteFactory.ReadDataAsync<OperationalDashboardResponse>(
             await manager.GetAsync("/api/dashboard/operational"));
 
         Assert.Equal(SeededNovaBankTicketCount + 1, dashboard.TotalTicketCount);
@@ -80,12 +73,12 @@ public sealed class DashboardApiTests
     [Fact]
     public async Task GetOperationalDashboard_Supervisor_SeesOnlyAccountScope()
     {
-        await using var factory = await DashboardApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
         await AddTicketDirectlyAsync(factory, SeedIds.Accounts.NovaBank, SeedIds.Campaigns.NovaBankCreditCard, SeedIds.Customers.NovaBankCustomer1);
         await AddTicketDirectlyAsync(factory, SeedIds.Accounts.Streamly, SeedIds.Campaigns.StreamlyCreator, SeedIds.Customers.StreamlyCustomer1);
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
 
-        var dashboard = await ReadDataAsync<OperationalDashboardResponse>(
+        var dashboard = await OpsSphereSqliteFactory.ReadDataAsync<OperationalDashboardResponse>(
             await supervisor.GetAsync("/api/dashboard/operational"));
 
         Assert.Equal(SeededNovaBankTicketCount + 1, dashboard.TotalTicketCount);
@@ -95,12 +88,12 @@ public sealed class DashboardApiTests
     [Fact]
     public async Task GetOperationalDashboard_Agent_SeesOnlyCampaignScope()
     {
-        await using var factory = await DashboardApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
         await AddTicketDirectlyAsync(factory, SeedIds.Accounts.NovaBank, SeedIds.Campaigns.NovaBankCreditCard, SeedIds.Customers.NovaBankCustomer1);
         await AddTicketDirectlyAsync(factory, SeedIds.Accounts.NovaBank, SeedIds.Campaigns.NovaBankFraud, SeedIds.Customers.NovaBankCustomer1);
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
 
-        var dashboard = await ReadDataAsync<OperationalDashboardResponse>(
+        var dashboard = await OpsSphereSqliteFactory.ReadDataAsync<OperationalDashboardResponse>(
             await agent.GetAsync("/api/dashboard/operational"));
 
         Assert.Equal(SeededNovaBankTicketCount + 1, dashboard.TotalTicketCount);
@@ -110,12 +103,12 @@ public sealed class DashboardApiTests
     [Fact]
     public async Task GetOperationalDashboard_WithOutOfScopeAccountFilter_ReturnsZeroCounts()
     {
-        await using var factory = await DashboardApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
         await AddTicketDirectlyAsync(factory, SeedIds.Accounts.NovaBank, SeedIds.Campaigns.NovaBankCreditCard, SeedIds.Customers.NovaBankCustomer1);
         await AddTicketDirectlyAsync(factory, SeedIds.Accounts.Streamly, SeedIds.Campaigns.StreamlyCreator, SeedIds.Customers.StreamlyCustomer1);
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
 
-        var dashboard = await ReadDataAsync<OperationalDashboardResponse>(
+        var dashboard = await OpsSphereSqliteFactory.ReadDataAsync<OperationalDashboardResponse>(
             await supervisor.GetAsync($"/api/dashboard/operational?accountId={SeedIds.Accounts.Streamly}"));
 
         Assert.Equal(0, dashboard.TotalTicketCount);
@@ -125,7 +118,7 @@ public sealed class DashboardApiTests
     [Fact]
     public async Task GetOperationalDashboard_Aggregates_AreCorrect()
     {
-        await using var factory = await DashboardApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
         await AddTicketDirectlyAsync(
             factory,
             SeedIds.Accounts.NovaBank,
@@ -144,9 +137,9 @@ public sealed class DashboardApiTests
             status: TicketStatus.Assigned,
             priority: TicketPriority.Normal,
             assignedAgentUserId: SeedIds.Users.AgentNovabank);
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
 
-        var dashboard = await ReadDataAsync<OperationalDashboardResponse>(
+        var dashboard = await OpsSphereSqliteFactory.ReadDataAsync<OperationalDashboardResponse>(
             await agent.GetAsync("/api/dashboard/operational"));
 
         Assert.Equal(SeededNovaBankTicketCount + 2, dashboard.TotalTicketCount);
@@ -163,7 +156,7 @@ public sealed class DashboardApiTests
     [Fact]
     public async Task GetOperationalDashboard_SlaAggregates_UseRequestTimeEvaluation()
     {
-        await using var factory = await DashboardApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
         await AddTicketDirectlyAsync(
             factory,
             SeedIds.Accounts.NovaBank,
@@ -172,9 +165,9 @@ public sealed class DashboardApiTests
             slaStartedAt: DateTime.UtcNow.AddHours(-6),
             slaDueAt: DateTime.UtcNow.AddHours(-1),
             storedSlaState: SlaState.WithinSla);
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
 
-        var dashboard = await ReadDataAsync<OperationalDashboardResponse>(
+        var dashboard = await OpsSphereSqliteFactory.ReadDataAsync<OperationalDashboardResponse>(
             await agent.GetAsync("/api/dashboard/operational"));
 
         Assert.Equal(3, dashboard.BreachedTicketCount);
@@ -184,12 +177,12 @@ public sealed class DashboardApiTests
     [Fact]
     public async Task GetOperationalDashboard_WithAccountFilter_IntersectsScope()
     {
-        await using var factory = await DashboardApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
         await AddTicketDirectlyAsync(factory, SeedIds.Accounts.NovaBank, SeedIds.Campaigns.NovaBankCreditCard, SeedIds.Customers.NovaBankCustomer1);
         await AddTicketDirectlyAsync(factory, SeedIds.Accounts.NovaBank, SeedIds.Campaigns.NovaBankFraud, SeedIds.Customers.NovaBankCustomer1);
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
 
-        var dashboard = await ReadDataAsync<OperationalDashboardResponse>(
+        var dashboard = await OpsSphereSqliteFactory.ReadDataAsync<OperationalDashboardResponse>(
             await supervisor.GetAsync($"/api/dashboard/operational?accountId={SeedIds.Accounts.NovaBank}"));
 
         Assert.Equal(SeededNovaBankTicketCount + 2, dashboard.TotalTicketCount);
@@ -199,8 +192,8 @@ public sealed class DashboardApiTests
     [Fact]
     public async Task GetOperationalDashboard_WithInvalidDateRange_Returns400()
     {
-        await using var factory = await DashboardApiFactory.CreateAsync();
-        var admin = await CreateAuthenticatedClientAsync(factory, AdminEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var admin = await factory.CreateAuthenticatedClientAsync(AdminEmail);
 
         var response = await admin.GetAsync("/api/dashboard/operational?dateFrom=2026-05-18T00:00:00Z&dateTo=2026-05-17T00:00:00Z");
 
@@ -210,9 +203,9 @@ public sealed class DashboardApiTests
     [Fact]
     public async Task GetOperationalDashboard_WithoutDashboardView_Returns403()
     {
-        await using var factory = await DashboardApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
         await RemoveDashboardPermissionFromAgentRoleAsync(factory);
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
 
         var response = await agent.GetAsync("/api/dashboard/operational");
 
@@ -220,7 +213,7 @@ public sealed class DashboardApiTests
     }
 
     private static async Task<Guid> AddTicketDirectlyAsync(
-        DashboardApiFactory factory,
+        OpsSphereSqliteFactory factory,
         Guid accountId,
         Guid campaignId,
         Guid customerId,
@@ -282,7 +275,7 @@ public sealed class DashboardApiTests
         return ticketId;
     }
 
-    private static async Task RemoveDashboardPermissionFromAgentRoleAsync(DashboardApiFactory factory)
+    private static async Task RemoveDashboardPermissionFromAgentRoleAsync(OpsSphereSqliteFactory factory)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
@@ -291,37 +284,6 @@ public sealed class DashboardApiTests
         db.RolePermissions.Remove(mapping);
         await db.SaveChangesAsync();
     }
-
-    private static async Task<HttpClient> CreateAuthenticatedClientAsync(DashboardApiFactory factory, string email)
-    {
-        var client = factory.CreateClient();
-        var loginResponse = await client.PostAsJsonAsync("/api/auth/login", new
-        {
-            email,
-            password = OpsSphereSeedData.LocalDemoPassword
-        });
-        loginResponse.EnsureSuccessStatusCode();
-        var loginBody = await ReadResponseAsync<ApiResponse<LoginData>>(loginResponse);
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", loginBody.Data.AccessToken);
-        return client;
-    }
-
-    private static async Task<T> ReadDataAsync<T>(HttpResponseMessage response)
-    {
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var envelope = await ReadResponseAsync<ApiResponse<T>>(response);
-        return envelope.Data;
-    }
-
-    private static async Task<T> ReadResponseAsync<T>(HttpResponseMessage response)
-    {
-        var json = await response.Content.ReadAsStringAsync();
-        var value = JsonSerializer.Deserialize<T>(json, JsonOptions);
-        return value ?? throw new InvalidOperationException($"Could not deserialize {typeof(T).Name} from {(int)response.StatusCode}: {json}");
-    }
-
-    private sealed record ApiResponse<T>(T Data);
-    private sealed record LoginData(string AccessToken);
 
     private sealed record OperationalDashboardResponse(
         DateTime GeneratedAtUtc,
@@ -381,70 +343,4 @@ public sealed class DashboardApiTests
         string? SlaState,
         DateTime? DateFrom,
         DateTime? DateTo);
-
-    internal sealed class DashboardApiFactory : WebApplicationFactory<Program>
-    {
-        public const string JwtSigningKey = "integration-testing-only-fictional-jwt-signing-key";
-
-        private readonly SqliteConnection connection = new("Data Source=:memory:");
-
-        public static async Task<DashboardApiFactory> CreateAsync()
-        {
-            ConfigureEnvironment();
-            var factory = new DashboardApiFactory();
-            await factory.connection.OpenAsync();
-            await factory.InitializeDatabaseAsync();
-            return factory;
-        }
-
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureAppConfiguration((_, config) =>
-            {
-                config.AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["ConnectionStrings:DefaultConnection"] = "Server=(local);Database=OpsSphereDashboardTests;Trusted_Connection=True;TrustServerCertificate=True;",
-                    ["SeedData:Enabled"] = "false",
-                    ["Jwt:Issuer"] = "OpsSphere.Tests",
-                    ["Jwt:Audience"] = "OpsSphere.Tests.Angular",
-                    ["Jwt:ExpirationMinutes"] = "60",
-                    ["Jwt:SigningKey"] = JwtSigningKey
-                });
-            });
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<IDbContextOptionsConfiguration<OpsSphereDbContext>>();
-                services.RemoveAll<DbContextOptions<OpsSphereDbContext>>();
-                services.AddDbContext<OpsSphereDbContext>(options => options.UseSqlite(connection));
-            });
-        }
-
-        private static void ConfigureEnvironment()
-        {
-            Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", "Server=(local);Database=OpsSphereDashboardTests;Trusted_Connection=True;TrustServerCertificate=True;");
-            Environment.SetEnvironmentVariable("SeedData__Enabled", "false");
-            Environment.SetEnvironmentVariable("Jwt__Issuer", "OpsSphere.Tests");
-            Environment.SetEnvironmentVariable("Jwt__Audience", "OpsSphere.Tests.Angular");
-            Environment.SetEnvironmentVariable("Jwt__ExpirationMinutes", "60");
-            Environment.SetEnvironmentVariable("Jwt__SigningKey", JwtSigningKey);
-        }
-
-        public override async ValueTask DisposeAsync()
-        {
-            await connection.DisposeAsync();
-            await base.DisposeAsync();
-        }
-
-        private async Task InitializeDatabaseAsync()
-        {
-            using var scope = Services.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
-            await dbContext.Database.EnsureDeletedAsync();
-            await dbContext.Database.EnsureCreatedAsync();
-
-            var seeder = scope.ServiceProvider.GetRequiredService<OpsSphereDataSeeder>();
-            await seeder.SeedAsync();
-        }
-    }
 }

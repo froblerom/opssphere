@@ -1,19 +1,12 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using OpsSphere.Domain.Entities;
 using OpsSphere.Infrastructure.Persistence;
 using OpsSphere.Infrastructure.Persistence.SeedData;
+using OpsSphere.IntegrationTests.TestInfrastructure;
 
 namespace OpsSphere.IntegrationTests.OrganizationManagement;
 
@@ -30,15 +23,15 @@ public sealed class OrganizationApiTests
     [Fact]
     public async Task Admin_CanCreateUpdateAndDeactivateOrganizationHierarchy()
     {
-        await using var factory = await OrganizationApiFactory.CreateAsync();
-        var client = await CreateAuthenticatedClientAsync(factory, AdminEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var client = await factory.CreateAuthenticatedClientAsync(AdminEmail);
 
         var region = await CreateRegionAsync(client, "andr", "Andromeda Region");
         Assert.Equal("ANDR", region.Code);
         await factory.AssertAuditAsync("RegionCreated", "Region", region.Id);
 
         var updatedRegionResponse = await client.PutAsJsonAsync($"/api/regions/{region.Id}", new { code = "ANDR-OPS", name = "Andromeda Operations" });
-        var updatedRegion = await ReadDataAsync<RegionResponse>(updatedRegionResponse);
+        var updatedRegion = await OpsSphereSqliteFactory.ReadDataAsync<RegionResponse>(updatedRegionResponse);
         Assert.Equal(HttpStatusCode.OK, updatedRegionResponse.StatusCode);
         Assert.Equal("ANDR-OPS", updatedRegion.Code);
         await factory.AssertAuditAsync("RegionUpdated", "Region", region.Id);
@@ -47,7 +40,7 @@ public sealed class OrganizationApiTests
         await factory.AssertAuditAsync("CountryCreated", "Country", country.Id);
 
         var updatedCountryResponse = await client.PutAsJsonAsync($"/api/countries/{country.Id}", new { regionId = updatedRegion.Id, code = "LUN", name = "Lunara Prime" });
-        var updatedCountry = await ReadDataAsync<CountryResponse>(updatedCountryResponse);
+        var updatedCountry = await OpsSphereSqliteFactory.ReadDataAsync<CountryResponse>(updatedCountryResponse);
         Assert.Equal(HttpStatusCode.OK, updatedCountryResponse.StatusCode);
         Assert.Equal("LUN", updatedCountry.Code);
         await factory.AssertAuditAsync("CountryUpdated", "Country", country.Id);
@@ -56,7 +49,7 @@ public sealed class OrganizationApiTests
         await factory.AssertAuditAsync("AccountCreated", "Account", account.Id);
 
         var updatedAccountResponse = await client.PutAsJsonAsync($"/api/accounts/{account.Id}", new { countryId = updatedCountry.Id, code = "ORION", name = "Orion Support", description = "Updated fictional account." });
-        var updatedAccount = await ReadDataAsync<AccountResponse>(updatedAccountResponse);
+        var updatedAccount = await OpsSphereSqliteFactory.ReadDataAsync<AccountResponse>(updatedAccountResponse);
         Assert.Equal(HttpStatusCode.OK, updatedAccountResponse.StatusCode);
         Assert.Equal("ORION", updatedAccount.Code);
         await factory.AssertAuditAsync("AccountUpdated", "Account", account.Id);
@@ -65,7 +58,7 @@ public sealed class OrganizationApiTests
         await factory.AssertAuditAsync("CampaignCreated", "Campaign", campaign.Id);
 
         var updatedCampaignResponse = await client.PutAsJsonAsync($"/api/campaigns/{campaign.Id}", new { accountId = updatedAccount.Id, countryId = updatedCountry.Id, code = "ORION-VOICE", name = "Orion Voice", description = "Updated fictional campaign." });
-        var updatedCampaign = await ReadDataAsync<CampaignResponse>(updatedCampaignResponse);
+        var updatedCampaign = await OpsSphereSqliteFactory.ReadDataAsync<CampaignResponse>(updatedCampaignResponse);
         Assert.Equal(HttpStatusCode.OK, updatedCampaignResponse.StatusCode);
         Assert.Equal("ORION-VOICE", updatedCampaign.Code);
         await factory.AssertAuditAsync("CampaignUpdated", "Campaign", campaign.Id);
@@ -85,8 +78,8 @@ public sealed class OrganizationApiTests
     [Fact]
     public async Task NonAdmin_CannotCreateUpdateOrDeactivateOrganizationRecords()
     {
-        await using var factory = await OrganizationApiFactory.CreateAsync();
-        var client = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var client = await factory.CreateAuthenticatedClientAsync(AgentEmail);
 
         var createRegion = await client.PostAsJsonAsync("/api/regions", new { code = "DENY-R", name = "Denied Region" });
         var updateRegion = await client.PutAsJsonAsync($"/api/regions/{SeedIds.Regions.Latam}", new { code = "LATAM", name = "Denied Region Update" });
@@ -110,11 +103,11 @@ public sealed class OrganizationApiTests
     [Fact]
     public async Task OrganizationValidation_RejectsRequiredFieldAndDuplicateCodeFailures()
     {
-        await using var factory = await OrganizationApiFactory.CreateAsync();
-        var client = await CreateAuthenticatedClientAsync(factory, AdminEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var client = await factory.CreateAuthenticatedClientAsync(AdminEmail);
 
         var missing = await client.PostAsJsonAsync("/api/regions", new { code = "", name = "" });
-        var missingError = await ReadErrorAsync(missing);
+        var missingError = await OpsSphereSqliteFactory.ReadErrorAsync(missing);
         Assert.Equal(HttpStatusCode.BadRequest, missing.StatusCode);
         Assert.Equal("validation_error", missingError.Error.Code);
         Assert.Contains(missingError.Error.Details, detail => detail.Field == "code");
@@ -129,8 +122,8 @@ public sealed class OrganizationApiTests
     [Fact]
     public async Task OrganizationParentsAndDeactivationRules_AreEnforced()
     {
-        await using var factory = await OrganizationApiFactory.CreateAsync();
-        var client = await CreateAuthenticatedClientAsync(factory, AdminEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var client = await factory.CreateAuthenticatedClientAsync(AdminEmail);
         var inactiveRegionId = await factory.AddInactiveRegionAsync("VOID-R", "Void Region");
         var inactiveCountryId = await factory.AddInactiveCountryAsync(inactiveRegionId, "VOID-C", "Void Country");
         var inactiveAccountId = await factory.AddInactiveAccountAsync(inactiveCountryId, "VOID-A", "Void Account");
@@ -160,15 +153,15 @@ public sealed class OrganizationApiTests
     [InlineData("viewer.latam@opssphere.local", "Campaign")]
     public async Task UserScopes_CanBeAssignedAccordingToRole(string email, string scopeType)
     {
-        await using var factory = await OrganizationApiFactory.CreateAsync();
-        var client = await CreateAuthenticatedClientAsync(factory, AdminEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var client = await factory.CreateAuthenticatedClientAsync(AdminEmail);
         var userId = await factory.GetUserIdAsync(email);
 
         var response = await client.PutAsJsonAsync($"/api/users/{userId}/scopes", new
         {
             scopes = new[] { CreateScopeRequest(scopeType) }
         });
-        var assignment = await ReadDataAsync<UserScopeAssignmentResponse>(response);
+        var assignment = await OpsSphereSqliteFactory.ReadDataAsync<UserScopeAssignmentResponse>(response);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains(assignment.Scopes, scope => scope.ScopeType == scopeType && scope.IsActive);
@@ -178,8 +171,8 @@ public sealed class OrganizationApiTests
     [Fact]
     public async Task UserScopes_RejectInvalidRoleInvalidScopeInactiveUserAndInactiveTargets()
     {
-        await using var factory = await OrganizationApiFactory.CreateAsync();
-        var client = await CreateAuthenticatedClientAsync(factory, AdminEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var client = await factory.CreateAuthenticatedClientAsync(AdminEmail);
         var inactiveRegionId = await factory.AddInactiveRegionAsync("SLEEP-R", "Sleeping Region");
         await factory.DeactivateUserAsync(SeedIds.Users.ViewerLatam);
 
@@ -192,8 +185,8 @@ public sealed class OrganizationApiTests
     [Fact]
     public async Task UserScopes_WriteAuditForAssignDeactivateAndReactivate()
     {
-        await using var factory = await OrganizationApiFactory.CreateAsync();
-        var client = await CreateAuthenticatedClientAsync(factory, AdminEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var client = await factory.CreateAuthenticatedClientAsync(AdminEmail);
 
         var assignAccount = await client.PutAsJsonAsync($"/api/users/{SeedIds.Users.AgentNovabank}/scopes", new { scopes = new[] { CreateScopeRequest("Account") } });
         Assert.Equal(HttpStatusCode.OK, assignAccount.StatusCode);
@@ -214,20 +207,20 @@ public sealed class OrganizationApiTests
     [Fact]
     public async Task ScopedReads_FilterOrganizationRecordsServerSide()
     {
-        await using var factory = await OrganizationApiFactory.CreateAsync();
-        var manager = await CreateAuthenticatedClientAsync(factory, ManagerEmail);
-        var viewer = await CreateAuthenticatedClientAsync(factory, ViewerEmail);
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var manager = await factory.CreateAuthenticatedClientAsync(ManagerEmail);
+        var viewer = await factory.CreateAuthenticatedClientAsync(ViewerEmail);
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
 
-        var managerRegions = await ReadDataAsync<IReadOnlyList<RegionResponse>>(await manager.GetAsync("/api/regions"));
-        var viewerCountries = await ReadDataAsync<IReadOnlyList<CountryResponse>>(await viewer.GetAsync("/api/countries"));
-        var supervisorAccounts = await ReadDataAsync<IReadOnlyList<AccountResponse>>(await supervisor.GetAsync("/api/accounts"));
-        var supervisorCampaigns = await ReadDataAsync<IReadOnlyList<CampaignResponse>>(await supervisor.GetAsync("/api/campaigns"));
-        var agentRegions = await ReadDataAsync<IReadOnlyList<RegionResponse>>(await agent.GetAsync("/api/regions"));
-        var agentCountries = await ReadDataAsync<IReadOnlyList<CountryResponse>>(await agent.GetAsync("/api/countries"));
-        var agentAccounts = await ReadDataAsync<IReadOnlyList<AccountResponse>>(await agent.GetAsync("/api/accounts"));
-        var agentCampaigns = await ReadDataAsync<IReadOnlyList<CampaignResponse>>(await agent.GetAsync("/api/campaigns"));
+        var managerRegions = await OpsSphereSqliteFactory.ReadDataAsync<IReadOnlyList<RegionResponse>>(await manager.GetAsync("/api/regions"));
+        var viewerCountries = await OpsSphereSqliteFactory.ReadDataAsync<IReadOnlyList<CountryResponse>>(await viewer.GetAsync("/api/countries"));
+        var supervisorAccounts = await OpsSphereSqliteFactory.ReadDataAsync<IReadOnlyList<AccountResponse>>(await supervisor.GetAsync("/api/accounts"));
+        var supervisorCampaigns = await OpsSphereSqliteFactory.ReadDataAsync<IReadOnlyList<CampaignResponse>>(await supervisor.GetAsync("/api/campaigns"));
+        var agentRegions = await OpsSphereSqliteFactory.ReadDataAsync<IReadOnlyList<RegionResponse>>(await agent.GetAsync("/api/regions"));
+        var agentCountries = await OpsSphereSqliteFactory.ReadDataAsync<IReadOnlyList<CountryResponse>>(await agent.GetAsync("/api/countries"));
+        var agentAccounts = await OpsSphereSqliteFactory.ReadDataAsync<IReadOnlyList<AccountResponse>>(await agent.GetAsync("/api/accounts"));
+        var agentCampaigns = await OpsSphereSqliteFactory.ReadDataAsync<IReadOnlyList<CampaignResponse>>(await agent.GetAsync("/api/campaigns"));
 
         Assert.Single(managerRegions);
         Assert.Contains(managerRegions, region => region.Code == "LATAM");
@@ -248,8 +241,8 @@ public sealed class OrganizationApiTests
     [Fact]
     public async Task OrganizationResponses_UseEnvelopeAndDoNotExposeSecrets()
     {
-        await using var factory = await OrganizationApiFactory.CreateAsync();
-        var client = await CreateAuthenticatedClientAsync(factory, AdminEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var client = await factory.CreateAuthenticatedClientAsync(AdminEmail);
 
         var regionResponse = await client.GetAsync("/api/regions");
         var json = await regionResponse.Content.ReadAsStringAsync();
@@ -272,40 +265,40 @@ public sealed class OrganizationApiTests
     {
         var response = await client.PostAsJsonAsync("/api/regions", new { code, name });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        return await ReadDataAsync<RegionResponse>(response);
+        return await OpsSphereSqliteFactory.ReadDataAsync<RegionResponse>(response);
     }
 
     private static async Task<CountryResponse> CreateCountryAsync(HttpClient client, Guid regionId, string code, string name)
     {
         var response = await client.PostAsJsonAsync("/api/countries", new { regionId, code, name });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        return await ReadDataAsync<CountryResponse>(response);
+        return await OpsSphereSqliteFactory.ReadDataAsync<CountryResponse>(response);
     }
 
     private static async Task<AccountResponse> CreateAccountAsync(HttpClient client, Guid countryId, string code, string name, string description)
     {
         var response = await client.PostAsJsonAsync("/api/accounts", new { countryId, code, name, description });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        return await ReadDataAsync<AccountResponse>(response);
+        return await OpsSphereSqliteFactory.ReadDataAsync<AccountResponse>(response);
     }
 
     private static async Task<CampaignResponse> CreateCampaignAsync(HttpClient client, Guid accountId, Guid countryId, string code, string name, string description)
     {
         var response = await client.PostAsJsonAsync("/api/campaigns", new { accountId, countryId, code, name, description });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        return await ReadDataAsync<CampaignResponse>(response);
+        return await OpsSphereSqliteFactory.ReadDataAsync<CampaignResponse>(response);
     }
 
     private static async Task AssertConflictAsync(HttpResponseMessage response)
     {
-        var error = await ReadErrorAsync(response);
+        var error = await OpsSphereSqliteFactory.ReadErrorAsync(response);
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.Equal("conflict", error.Error.Code);
     }
 
     private static async Task AssertValidationAsync(HttpResponseMessage response, string field)
     {
-        var error = await ReadErrorAsync(response);
+        var error = await OpsSphereSqliteFactory.ReadErrorAsync(response);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("validation_error", error.Error.Code);
         Assert.Contains(error.Error.Details, detail => detail.Field == field);
@@ -313,204 +306,23 @@ public sealed class OrganizationApiTests
 
     private static async Task AssertBusinessRuleAsync(HttpResponseMessage response)
     {
-        var error = await ReadErrorAsync(response);
+        var error = await OpsSphereSqliteFactory.ReadErrorAsync(response);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("business_rule_violation", error.Error.Code);
     }
 
-    private static async Task<HttpClient> CreateAuthenticatedClientAsync(OrganizationApiFactory factory, string email)
-    {
-        var client = factory.CreateClient();
-        var loginResponse = await client.PostAsJsonAsync("/api/auth/login", new
-        {
-            email,
-            password = OpsSphereSeedData.LocalDemoPassword
-        });
-        loginResponse.EnsureSuccessStatusCode();
-        var loginBody = await ReadResponseAsync<ApiResponse<LoginData>>(loginResponse);
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", loginBody.Data.AccessToken);
-
-        return client;
-    }
-
-    private static async Task<T> ReadDataAsync<T>(HttpResponseMessage response)
-    {
-        var envelope = await ReadResponseAsync<ApiResponse<T>>(response);
-        return envelope.Data;
-    }
-
-    private static async Task<ApiErrorResponse> ReadErrorAsync(HttpResponseMessage response) =>
-        await ReadResponseAsync<ApiErrorResponse>(response);
-
-    private static async Task<T> ReadResponseAsync<T>(HttpResponseMessage response)
+private static async Task AssertResponseDoesNotExposeSensitiveDataAsync(HttpResponseMessage response)
     {
         var json = await response.Content.ReadAsStringAsync();
-        var value = JsonSerializer.Deserialize<T>(json, JsonOptions);
-
-        return value ?? throw new InvalidOperationException($"Could not deserialize {typeof(T).Name} from {(int)response.StatusCode}: {json}");
-    }
-
-    private static async Task AssertResponseDoesNotExposeSensitiveDataAsync(HttpResponseMessage response)
-    {
-        var json = await response.Content.ReadAsStringAsync();
-        foreach (var term in new[] { "passwordHash", "temporaryPassword", "accessToken", "refreshToken", "jwt", "secret", OrganizationApiFactory.JwtSigningKey })
+        foreach (var term in new[] { "passwordHash", "temporaryPassword", "accessToken", "refreshToken", "jwt", "secret", OpsSphereSqliteFactory.JwtSigningKey })
         {
             Assert.DoesNotContain(term, json, StringComparison.OrdinalIgnoreCase);
         }
     }
-
-    private sealed record ApiResponse<T>(T Data);
-    private sealed record ApiErrorResponse(ApiError Error);
-    private sealed record ApiError(string Code, string Message, IReadOnlyList<ApiErrorDetail> Details);
-    private sealed record ApiErrorDetail(string? Field, string Message);
-    private sealed record LoginData(string AccessToken);
     private sealed record RegionResponse(Guid Id, string Code, string Name, bool IsActive);
     private sealed record CountryResponse(Guid Id, Guid RegionId, string RegionCode, string Code, string Name, bool IsActive);
     private sealed record AccountResponse(Guid Id, Guid CountryId, string CountryCode, Guid RegionId, string RegionCode, string Code, string Name, string? Description, bool IsActive);
     private sealed record CampaignResponse(Guid Id, Guid AccountId, string AccountCode, Guid CountryId, string CountryCode, Guid RegionId, string RegionCode, string Code, string Name, string? Description, bool IsActive);
     private sealed record UserScopeAssignmentResponse(Guid UserId, string Email, bool IsActive, IReadOnlyList<string> Roles, IReadOnlyList<UserScopeResponse> Scopes);
     private sealed record UserScopeResponse(Guid Id, string ScopeType, Guid? RegionId, Guid? CountryId, Guid? AccountId, Guid? CampaignId, bool IsActive);
-
-    internal sealed class OrganizationApiFactory : WebApplicationFactory<Program>
-    {
-        public const string JwtSigningKey = "integration-testing-only-fictional-jwt-signing-key";
-
-        private readonly SqliteConnection connection = new("Data Source=:memory:");
-
-        public static async Task<OrganizationApiFactory> CreateAsync()
-        {
-            ConfigureEnvironment();
-            var factory = new OrganizationApiFactory();
-            await factory.connection.OpenAsync();
-            await factory.InitializeDatabaseAsync();
-
-            return factory;
-        }
-
-        public async Task<Guid> GetUserIdAsync(string email)
-        {
-            using var scope = Services.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
-
-            return await dbContext.Users
-                .Where(user => user.Email == email)
-                .Select(user => user.Id)
-                .SingleAsync();
-        }
-
-        public async Task DeactivateUserAsync(Guid userId)
-        {
-            using var scope = Services.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
-            var user = await dbContext.Users.SingleAsync(u => u.Id == userId);
-            user.IsActive = false;
-            user.DeactivatedAt = DateTime.UtcNow;
-            await dbContext.SaveChangesAsync();
-        }
-
-        public async Task<Guid> AddInactiveRegionAsync(string code, string name)
-        {
-            using var scope = Services.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
-            var region = new Region { Id = Guid.NewGuid(), Code = code, Name = name, IsActive = false, CreatedAt = DateTime.UtcNow };
-            dbContext.Regions.Add(region);
-            await dbContext.SaveChangesAsync();
-
-            return region.Id;
-        }
-
-        public async Task<Guid> AddInactiveCountryAsync(Guid regionId, string code, string name)
-        {
-            using var scope = Services.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
-            var country = new Country { Id = Guid.NewGuid(), RegionId = regionId, Code = code, Name = name, IsActive = false, CreatedAt = DateTime.UtcNow };
-            dbContext.Countries.Add(country);
-            await dbContext.SaveChangesAsync();
-
-            return country.Id;
-        }
-
-        public async Task<Guid> AddInactiveAccountAsync(Guid countryId, string code, string name)
-        {
-            using var scope = Services.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
-            var account = new Account { Id = Guid.NewGuid(), CountryId = countryId, Code = code, Name = name, IsActive = false, CreatedAt = DateTime.UtcNow };
-            dbContext.Accounts.Add(account);
-            await dbContext.SaveChangesAsync();
-
-            return account.Id;
-        }
-
-        public async Task AssertAuditAsync(string action, string entityType, Guid entityId)
-        {
-            using var scope = Services.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
-
-            var audit = await dbContext.AuditLogs
-                .AsNoTracking()
-                .Where(log => log.Action == action && log.EntityType == entityType && log.EntityId == entityId)
-                .OrderByDescending(log => log.CreatedAt)
-                .FirstOrDefaultAsync();
-
-            Assert.NotNull(audit);
-            Assert.Equal(SeedIds.Users.Admin, audit.ActorUserId);
-            Assert.False(string.IsNullOrWhiteSpace(audit.CorrelationId));
-            Assert.DoesNotContain("password", audit.PreviousValue ?? string.Empty, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("password", audit.NewValue ?? string.Empty, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain(JwtSigningKey, audit.PreviousValue ?? string.Empty, StringComparison.Ordinal);
-            Assert.DoesNotContain(JwtSigningKey, audit.NewValue ?? string.Empty, StringComparison.Ordinal);
-        }
-
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureAppConfiguration((_, config) =>
-            {
-                config.AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["ConnectionStrings:DefaultConnection"] = "Server=(local);Database=OpsSphereOrganizationTests;Trusted_Connection=True;TrustServerCertificate=True;",
-                    ["SeedData:Enabled"] = "false",
-                    ["Jwt:Issuer"] = "OpsSphere.Tests",
-                    ["Jwt:Audience"] = "OpsSphere.Tests.Angular",
-                    ["Jwt:ExpirationMinutes"] = "60",
-                    ["Jwt:SigningKey"] = JwtSigningKey
-                });
-            });
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<IDbContextOptionsConfiguration<OpsSphereDbContext>>();
-                services.RemoveAll<DbContextOptions<OpsSphereDbContext>>();
-                services.AddDbContext<OpsSphereDbContext>(options => options.UseSqlite(connection));
-            });
-        }
-
-        private static void ConfigureEnvironment()
-        {
-            Environment.SetEnvironmentVariable(
-                "ConnectionStrings__DefaultConnection",
-                "Server=(local);Database=OpsSphereOrganizationTests;Trusted_Connection=True;TrustServerCertificate=True;");
-            Environment.SetEnvironmentVariable("SeedData__Enabled", "false");
-            Environment.SetEnvironmentVariable("Jwt__Issuer", "OpsSphere.Tests");
-            Environment.SetEnvironmentVariable("Jwt__Audience", "OpsSphere.Tests.Angular");
-            Environment.SetEnvironmentVariable("Jwt__ExpirationMinutes", "60");
-            Environment.SetEnvironmentVariable("Jwt__SigningKey", JwtSigningKey);
-        }
-
-        public override async ValueTask DisposeAsync()
-        {
-            await connection.DisposeAsync();
-            await base.DisposeAsync();
-        }
-
-        private async Task InitializeDatabaseAsync()
-        {
-            using var scope = Services.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
-            await dbContext.Database.EnsureDeletedAsync();
-            await dbContext.Database.EnsureCreatedAsync();
-
-            var seeder = scope.ServiceProvider.GetRequiredService<OpsSphereDataSeeder>();
-            await seeder.SeedAsync();
-        }
-    }
 }
