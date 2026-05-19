@@ -130,3 +130,7 @@ To run the migration smoke test (requires Docker):
 ```
 dotnet test tests/OpsSphere.IntegrationTests --filter "Category=Heavy"
 ```
+
+## CI Validation
+
+For how these commands map to GitHub Actions CI jobs, which jobs are required before merge, Docker and Testcontainers notes, and failure triage guidance, see [ci-validation.md](ci-validation.md).
