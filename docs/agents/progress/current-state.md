@@ -13,29 +13,10 @@ The goal is to give future agents a short operational memory without forcing the
 ## Current Project Phase
 
 ```text
-Planning and architecture documentation phase.
+MVP complete. Release readiness phase.
 ```
 
-OpsSphere has not yet entered full application implementation.
-
-The repository currently emphasizes:
-
-```text
-Business documentation
-Requirements documentation
-Process modeling
-Domain modeling
-Architecture planning
-Security design
-Database design
-API design
-Testing strategy
-Deployment planning
-Observability planning
-Risk management
-Architecture Decision Records
-Agent harness documentation
-```
+OpsSphere has completed full-stack MVP implementation across backend, frontend, testing, and CI. The current focus is release validation, documentation finalization, and preparing for MVP sign-off.
 
 ---
 
@@ -58,6 +39,60 @@ An AI automation suite
 
 ---
 
+## Completed Milestones
+
+```text
+Milestone 1 — Technical Foundation
+  .NET 10 / ASP.NET Core Web API solution structure
+  Clean Architecture (Domain → Application ← Infrastructure → API)
+  EF Core migrations and SQL Server integration
+  JWT authentication with role + permission + scope-based authorization
+  Docker Compose local infrastructure
+  Serilog structured logging
+
+Milestone 2 — Core Domain Implementation
+  User and role management (CRUD, deactivation, scope assignment)
+  Organization hierarchy management (Region → Country → Account → Campaign)
+  Customer management with ticket history
+  Ticket lifecycle: create, assign, status workflow, priority, comment, escalate, resolve, close
+  SLA evaluation (wall-clock, four states: WithinSla, AtRisk, Breached, Completed)
+  Audit log (immutable, scoped, lifecycle-complete)
+
+Milestone 3 — Operational Dashboard and Filters
+  Operational dashboard with totals, groupings (status, priority, SLA state, account, campaign, agent, supervisor)
+  Dashboard filters (account, campaign, status, date range) with scope intersection
+  SLA summary endpoint
+  Dashboard drill-ins to filtered ticket list
+
+Milestone 4 — Angular Frontend MVP
+  Standalone Angular 21.x components with Angular Material
+  Lazy-loaded routes with authGuard and permissionGuard
+  Full ticket lifecycle UI workflows
+  Role-aware navigation (admin, supervisor, agent, viewer)
+  Dashboard and SLA badge views
+  Audit log and entity history panels
+  Customer management UI
+
+Milestone 5 — Integration Testing and CI
+  OpsSphereSqliteFactory (SQLite in-memory, fictional JWT, full seed data)
+  Full integration test suite: auth, authorization, user mgmt, org mgmt, customer mgmt,
+    ticket management, ticket lifecycle gaps, audit, SLA, dashboard, health, middleware,
+    persistence/seed verification
+  MigrationTests (Heavy category, Testcontainers SQL Server)
+  GitHub Actions CI: backend-fast, integration-fast, integration-heavy, frontend jobs
+  CI documentation: docs/testing/ci-validation.md, docs/testing/mvp-regression-tests.md
+
+Milestone 6 — Release Readiness (current)
+  docs/release/mvp-release-checklist.md
+  docs/release/mvp-demo-script.md
+  docs/release/mvp-uat-checklist.md
+  docs/release/mvp-known-limitations.md
+  docs/release/phase-2-3-parking-lot.md
+  Angular root route (/) redirects to /dashboard on init
+```
+
+---
+
 ## Current Canonical Technical Direction
 
 ```text
@@ -65,42 +100,41 @@ Backend:
   .NET 10
   ASP.NET Core Web API
   Clean Architecture
-  CQRS with MediatR
-  Entity Framework Core
-  SQL Server
+  CQRS without MediatR (direct handler injection)
+  EF Core 9.0.5 (Infrastructure only)
+  SQL Server (production/local), SQLite in-memory (tests)
   JWT authentication
-  Role-based authorization
-  Scope-based access control
-  Serilog
+  PermissionAuthorizationHandler (per-permission policy)
+  Role + Permission + Scope-based access control (4-level hierarchy)
+  ScopeAuthorizationService (full hierarchy resolution, DB-backed)
+  ActiveUserMiddleware (blocks deactivated users, 401)
+  GlobalExceptionHandlingMiddleware (safe error envelope, no stack traces)
+  CorrelationIdMiddleware (X-Correlation-Id on all responses)
+  Serilog (structured, enriched with CorrelationId and UserId)
+  Central package management: Directory.Packages.props
 
 Frontend:
-  Angular
+  Angular 21.x
   TypeScript
-  RxJS
-  Reactive Forms
-  Angular Router
-  Route guards
+  Angular Material
+  Standalone components
+  Lazy-loaded routes
+  authGuard + permissionGuard on all protected routes
   HTTP interceptors
-  Angular Material or Tailwind
+  RxJS signals
 
 Testing:
   xUnit
-  WebApplicationFactory
-  Testcontainers
-  Integration tests
-  API tests
-  Frontend tests
-  E2E tests for critical flows
+  WebApplicationFactory (OpsSphereSqliteFactory)
+  Testcontainers.MsSql (Heavy category only)
+  Integration tests (SQLite in-memory, fictional seed data)
+  [assembly: CollectionBehavior(DisableTestParallelization = true)]
+  Frontend unit tests (Karma + ChromeHeadless)
 
 DevOps:
-  Docker
-  Docker Compose
-  GitHub Actions
-  Azure-ready deployment
-  Azure App Service
-  Azure SQL
-  Azure Key Vault
-  Application Insights
+  Docker Compose (local SQL Server)
+  GitHub Actions (backend-fast, integration-fast, integration-heavy, frontend)
+  OpsSphere.slnx (.slnx format, .NET 10 SDK required)
 ```
 
 ---
@@ -110,27 +144,20 @@ DevOps:
 The MVP includes:
 
 ```text
-Authentication
-JWT API access
-Role-based authorization
-Permission-based authorization
-Scope-based visibility
+Authentication and JWT API access
+Role-based and permission-based authorization
+Scope-based visibility (Region → Country → Account → Campaign)
 User and role management
 Operational structure management
 Customer management
-Ticket lifecycle
-Ticket assignment
-Ticket status workflow
-Ticket priority
-Basic SLA tracking
+Ticket lifecycle (create, assign, status, priority, comment, escalate, resolve, close)
+SLA tracking (wall-clock, four states)
 Internal comments
-Escalation
-Resolution
-Closure
-Audit history
-Basic dashboards
+Escalation queue
+Audit log (immutable, lifecycle-complete)
+Operational dashboards with scope-filtered metrics
 Filtered operational views
-Structured data for external reporting
+GitHub Actions CI pipeline
 ```
 
 ---
@@ -140,86 +167,57 @@ Structured data for external reporting
 The MVP excludes:
 
 ```text
-Advanced Power BI dashboards
-AI ticket classification
-Predictive SLA modeling
-Telephony integration
-Call recording
-Omnichannel integrations
-Workforce scheduling
-Payroll
-HR management
-External customer portal
-Real-time chat
-Mobile app
-Complex notification engine
+Swagger / OpenAPI endpoint
+Automated browser E2E tests (Playwright, Cypress)
+Azure deployment
+Application Insights / centralized log aggregation
+Business-hours SLA calendars
+Notification system (email, in-app, webhooks)
+Reports module, report builder, export UI
+Attachments
 Enterprise SSO
-Multi-tenant billing
+External customer portal
+Power BI integration
+Telephony or omnichannel
+Workforce management
+Mobile app
 ```
+
+See `docs/release/mvp-known-limitations.md` and `docs/release/phase-2-3-parking-lot.md` for full details.
 
 ---
 
 ## Current Documentation Baseline
 
-Canonical docs currently include:
+Core product docs:
 
 ```text
-docs/00-executive-summary.md
-docs/01-business-context.md
-docs/02-business-case.md
-docs/03-project-charter.md
-docs/04-stakeholders.md
-docs/05-scope-and-roadmap.md
-docs/06-requirements.md
-docs/07-use-cases.md
-docs/08-business-process-flows.md
-docs/09-business-rules.md
-docs/10-domain-model.md
-docs/11-architecture-overview.md
-docs/12-c4-architecture.md
-docs/13-uml-diagrams.md
-docs/14-database-design.md
-docs/15-api-design.md
-docs/16-security-and-permissions.md
-docs/17-testing-strategy.md
-docs/18-deployment-and-devops.md
-docs/19-observability-and-support.md
-docs/20-risk-register.md
+docs/00-executive-summary.md through docs/22-implementation-guardrails.md
 docs/decisions/
 ```
 
----
+Testing and CI docs:
 
-## Current Agent Harness Baseline
+```text
+docs/testing/mvp-regression-tests.md
+docs/testing/ci-validation.md
+docs/smoke-test-22.md
+```
 
-Agent harness docs should live under:
+Release docs:
+
+```text
+docs/release/mvp-release-checklist.md
+docs/release/mvp-demo-script.md
+docs/release/mvp-uat-checklist.md
+docs/release/mvp-known-limitations.md
+docs/release/phase-2-3-parking-lot.md
+```
+
+Agent harness docs:
 
 ```text
 docs/agents/
-```
-
-Recommended files:
-
-```text
-docs/agents/00-agent-operating-protocol.md
-docs/agents/01-project-context.md
-docs/agents/02-architecture-context.md
-docs/agents/03-domain-context.md
-docs/agents/04-business-rules-context.md
-docs/agents/05-testing-and-validation-context.md
-docs/agents/06-backend-context.md
-docs/agents/07-frontend-context.md
-docs/agents/08-devops-context.md
-docs/agents/09-observability-context.md
-docs/agents/10-issue-execution-template.md
-docs/agents/11-prompt-levels.md
-docs/agents/12-prompt-classifier.md
-
-docs/agents/subagents/architecture-auditor.md
-docs/agents/subagents/backend-implementation-agent.md
-docs/agents/subagents/testing-agent.md
-docs/agents/subagents/verification-agent.md
-
 docs/agents/progress/current-state.md
 ```
 
@@ -242,25 +240,19 @@ Test behavior changes.
 Do not modify unrelated files.
 Do not commit secrets.
 Use fictional sample data only.
+No real company, customer, employee, or credential data.
 ```
 
 ---
 
 ## Next Recommended Work
 
-Recommended next focus:
-
 ```text
-Complete or review the AI agent harness audit, then move intentionally into Milestone 1 technical foundation work when scoped.
-```
-
-Recommended scope:
-
-```text
-Keep docs/agents aligned with canonical docs.
-Do not add product scope through agent instructions.
-Use Milestone 1 only when the issue explicitly starts technical foundation work.
-Do not change application source code from harness maintenance tasks.
+MVP sign-off: complete mvp-release-checklist.md and mvp-uat-checklist.md manually.
+Run integration-heavy CI job at least once on the release branch.
+Complete manual smoke test (docs/smoke-test-22.md) for all personas.
+Dry-run the demo script (docs/release/mvp-demo-script.md) end-to-end.
+After sign-off: begin Phase 2 planning (Swagger, Azure deployment, E2E automation, SLA enhancements).
 ```
 
 ---
@@ -268,5 +260,5 @@ Do not change application source code from harness maintenance tasks.
 ## Last Updated
 
 ```text
-2026-05-13
+2026-05-19
 ```
