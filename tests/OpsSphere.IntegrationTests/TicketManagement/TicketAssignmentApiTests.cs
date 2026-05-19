@@ -1,21 +1,14 @@
-using System.Net;
-using System.Net.Http.Headers;
+﻿using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using OpsSphere.Domain.Authorization;
 using OpsSphere.Domain.Entities;
 using OpsSphere.Domain.Enums;
 using OpsSphere.Infrastructure.Persistence;
 using OpsSphere.Infrastructure.Persistence.SeedData;
+using OpsSphere.IntegrationTests.TestInfrastructure;
 
 namespace OpsSphere.IntegrationTests.TicketManagement;
 
@@ -31,14 +24,14 @@ public sealed class TicketAssignmentApiTests
     [Fact]
     public async Task Supervisor_CanAssignTicket_WithinScope_Returns200()
     {
-        await using var factory = await TicketAssignmentApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Assignment happy path");
 
         var response = await AssignTicketAsync(supervisor, ticket.Id, SeedIds.Users.AgentNovabank);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var result = await ReadDataAsync<AssignTicketResponse>(response);
+        var result = await OpsSphereSqliteFactory.ReadDataAsync<AssignTicketResponse>(response);
         Assert.Equal(ticket.Id, result.TicketId);
         Assert.Equal(ticket.TicketNumber, result.TicketNumber);
         Assert.Equal(SeedIds.Users.AgentNovabank, result.AssignedAgentUserId);
@@ -50,8 +43,8 @@ public sealed class TicketAssignmentApiTests
     [Fact]
     public async Task Supervisor_CanReassignTicket_Returns200()
     {
-        await using var factory = await TicketAssignmentApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Reassignment happy path");
         await AssignTicketAsync(supervisor, ticket.Id, SeedIds.Users.AgentNovabank);
         var secondAgentId = await AddAgentAsync(factory, "Reassign Target", isActive: true, scopeType: ScopeTypes.Account, accountId: SeedIds.Accounts.NovaBank);
@@ -59,7 +52,7 @@ public sealed class TicketAssignmentApiTests
         var response = await AssignTicketAsync(supervisor, ticket.Id, secondAgentId, "Routing to backup agent");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var result = await ReadDataAsync<AssignTicketResponse>(response);
+        var result = await OpsSphereSqliteFactory.ReadDataAsync<AssignTicketResponse>(response);
         Assert.Equal(secondAgentId, result.AssignedAgentUserId);
         Assert.Equal(SeedIds.Users.AgentNovabank, result.PreviousAgentUserId);
         Assert.Equal("Assigned", result.Status);
@@ -68,9 +61,9 @@ public sealed class TicketAssignmentApiTests
     [Fact]
     public async Task Agent_CannotAssignTicket_Returns403()
     {
-        await using var factory = await TicketAssignmentApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Agent forbidden assignment");
 
         var response = await AssignTicketAsync(agent, ticket.Id, SeedIds.Users.AgentNovabank);
@@ -81,9 +74,9 @@ public sealed class TicketAssignmentApiTests
     [Fact]
     public async Task Viewer_CannotAssignTicket_Returns403()
     {
-        await using var factory = await TicketAssignmentApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
-        var viewer = await CreateAuthenticatedClientAsync(factory, ViewerEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
+        var viewer = await factory.CreateAuthenticatedClientAsync(ViewerEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Viewer forbidden assignment");
 
         var response = await AssignTicketAsync(viewer, ticket.Id, SeedIds.Users.AgentNovabank);
@@ -94,9 +87,9 @@ public sealed class TicketAssignmentApiTests
     [Fact]
     public async Task Admin_CannotAssignTicket_Returns403()
     {
-        await using var factory = await TicketAssignmentApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
-        var admin = await CreateAuthenticatedClientAsync(factory, AdminEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
+        var admin = await factory.CreateAuthenticatedClientAsync(AdminEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Admin forbidden assignment");
 
         var response = await AssignTicketAsync(admin, ticket.Id, SeedIds.Users.AgentNovabank);
@@ -107,8 +100,8 @@ public sealed class TicketAssignmentApiTests
     [Fact]
     public async Task Supervisor_CannotAssign_OutOfScopeTicket_Returns404()
     {
-        await using var factory = await TicketAssignmentApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var outOfScopeTicketId = await AddTicketDirectlyAsync(
             factory,
             SeedIds.Accounts.Streamly,
@@ -125,15 +118,15 @@ public sealed class TicketAssignmentApiTests
     [Fact]
     public async Task Supervisor_CannotAssign_ClosedTicket_Returns400()
     {
-        await using var factory = await TicketAssignmentApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Closed assignment rejection");
         await SetTicketStatusAsync(factory, ticket.Id, TicketStatus.Closed);
 
         var response = await AssignTicketAsync(supervisor, ticket.Id, SeedIds.Users.AgentNovabank);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await ReadErrorAsync(response);
+        var error = await OpsSphereSqliteFactory.ReadErrorAsync(response);
         Assert.Equal("business_rule_violation", error.Error.Code);
         Assert.Contains("closed", error.Error.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -141,15 +134,15 @@ public sealed class TicketAssignmentApiTests
     [Fact]
     public async Task Supervisor_CannotAssign_InactiveAgent_Returns400()
     {
-        await using var factory = await TicketAssignmentApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Inactive agent rejection");
         var inactiveAgentId = await AddAgentAsync(factory, "Inactive Test Agent", isActive: false, scopeType: ScopeTypes.Campaign, campaignId: SeedIds.Campaigns.NovaBankCreditCard);
 
         var response = await AssignTicketAsync(supervisor, ticket.Id, inactiveAgentId);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await ReadErrorAsync(response);
+        var error = await OpsSphereSqliteFactory.ReadErrorAsync(response);
         Assert.Equal("validation_error", error.Error.Code);
         Assert.Contains(error.Error.Details, d => d.Field == "targetAgentUserId");
     }
@@ -157,15 +150,15 @@ public sealed class TicketAssignmentApiTests
     [Fact]
     public async Task Supervisor_CannotAssign_OutOfScopeAgent_Returns400()
     {
-        await using var factory = await TicketAssignmentApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Out-of-scope agent rejection");
         var outOfScopeAgentId = await AddAgentAsync(factory, "Streamly Test Agent", isActive: true, scopeType: ScopeTypes.Campaign, campaignId: SeedIds.Campaigns.StreamlyCreator);
 
         var response = await AssignTicketAsync(supervisor, ticket.Id, outOfScopeAgentId);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await ReadErrorAsync(response);
+        var error = await OpsSphereSqliteFactory.ReadErrorAsync(response);
         Assert.Equal("validation_error", error.Error.Code);
         Assert.Contains(error.Error.Details, d => d.Field == "targetAgentUserId");
     }
@@ -173,15 +166,15 @@ public sealed class TicketAssignmentApiTests
     [Fact]
     public async Task Supervisor_CannotAssign_SameAgent_Returns400()
     {
-        await using var factory = await TicketAssignmentApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Same-agent assignment rejection");
         await AssignTicketAsync(supervisor, ticket.Id, SeedIds.Users.AgentNovabank);
 
         var response = await AssignTicketAsync(supervisor, ticket.Id, SeedIds.Users.AgentNovabank);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await ReadErrorAsync(response);
+        var error = await OpsSphereSqliteFactory.ReadErrorAsync(response);
         Assert.Equal("business_rule_violation", error.Error.Code);
         Assert.Contains("already assigned", error.Error.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -189,8 +182,8 @@ public sealed class TicketAssignmentApiTests
     [Fact]
     public async Task Assign_UpdatesStatus_OpenToAssigned()
     {
-        await using var factory = await TicketAssignmentApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Open to assigned status");
 
         await AssignTicketAsync(supervisor, ticket.Id, SeedIds.Users.AgentNovabank);
@@ -205,8 +198,8 @@ public sealed class TicketAssignmentApiTests
     [Fact]
     public async Task Assign_DoesNotChangeStatus_IfAlreadyAssigned()
     {
-        await using var factory = await TicketAssignmentApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Assigned status remains assigned");
         var secondAgentId = await AddAgentAsync(factory, "Second Assigned Agent", isActive: true, scopeType: ScopeTypes.Account, accountId: SeedIds.Accounts.NovaBank);
         await AssignTicketAsync(supervisor, ticket.Id, SeedIds.Users.AgentNovabank);
@@ -223,8 +216,8 @@ public sealed class TicketAssignmentApiTests
     [Fact]
     public async Task Assign_CreatesAssignmentHistory()
     {
-        await using var factory = await TicketAssignmentApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Assignment history persistence");
 
         await AssignTicketAsync(supervisor, ticket.Id, SeedIds.Users.AgentNovabank, "  Trimmed reason  ");
@@ -241,8 +234,8 @@ public sealed class TicketAssignmentApiTests
     [Fact]
     public async Task Assign_CreatesStatusHistory_WhenOpenToAssigned()
     {
-        await using var factory = await TicketAssignmentApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Assignment status history");
 
         await AssignTicketAsync(supervisor, ticket.Id, SeedIds.Users.AgentNovabank);
@@ -262,8 +255,8 @@ public sealed class TicketAssignmentApiTests
     [Fact]
     public async Task Assign_DoesNotCreateStatusHistory_WhenStatusUnchanged()
     {
-        await using var factory = await TicketAssignmentApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "No status history on reassignment");
         var secondAgentId = await AddAgentAsync(factory, "No Status History Agent", isActive: true, scopeType: ScopeTypes.Account, accountId: SeedIds.Accounts.NovaBank);
         await AssignTicketAsync(supervisor, ticket.Id, SeedIds.Users.AgentNovabank);
@@ -278,8 +271,8 @@ public sealed class TicketAssignmentApiTests
     [Fact]
     public async Task Assign_CreatesAuditLog_WithTicketAssignedAction()
     {
-        await using var factory = await TicketAssignmentApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Assignment audit action");
 
         await AssignTicketAsync(supervisor, ticket.Id, SeedIds.Users.AgentNovabank);
@@ -297,8 +290,8 @@ public sealed class TicketAssignmentApiTests
     [Fact]
     public async Task AuditLog_DoesNotContainPII_OnAssignment()
     {
-        await using var factory = await TicketAssignmentApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         const string sensitiveSubject = "AssignmentSensitiveSubject-ABC123";
         const string sensitiveDescription = "AssignmentSensitiveDescription-XYZ987";
         var ticket = await CreateTicketAsync(
@@ -333,22 +326,22 @@ public sealed class TicketAssignmentApiTests
     [Fact]
     public async Task GetEligibleAgents_ReturnsActiveAgentsInScope_Returns200()
     {
-        await using var factory = await TicketAssignmentApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Eligible agents lookup");
 
         var response = await supervisor.GetAsync($"/api/tickets/{ticket.Id}/eligible-agents");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var agents = await ReadDataAsync<IReadOnlyList<EligibleAgentDto>>(response);
+        var agents = await OpsSphereSqliteFactory.ReadDataAsync<IReadOnlyList<EligibleAgentDto>>(response);
         Assert.Contains(agents, a => a.UserId == SeedIds.Users.AgentNovabank && a.DisplayName == "Diego Santos");
     }
 
     [Fact]
     public async Task GetEligibleAgents_Returns404_ForOutOfScopeTicket()
     {
-        await using var factory = await TicketAssignmentApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var outOfScopeTicketId = await AddTicketDirectlyAsync(
             factory,
             SeedIds.Accounts.Streamly,
@@ -365,8 +358,8 @@ public sealed class TicketAssignmentApiTests
     [Fact]
     public async Task GetEligibleAgents_DoesNotReturnInactiveOrOutOfScopeAgents()
     {
-        await using var factory = await TicketAssignmentApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Eligible agents filtering");
         var inactiveAgentId = await AddAgentAsync(factory, "Inactive Lookup Agent", isActive: false, scopeType: ScopeTypes.Campaign, campaignId: SeedIds.Campaigns.NovaBankCreditCard);
         var outOfScopeAgentId = await AddAgentAsync(factory, "Out Of Scope Lookup Agent", isActive: true, scopeType: ScopeTypes.Campaign, campaignId: SeedIds.Campaigns.StreamlyCreator);
@@ -375,7 +368,7 @@ public sealed class TicketAssignmentApiTests
         var response = await supervisor.GetAsync($"/api/tickets/{ticket.Id}/eligible-agents");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var agents = await ReadDataAsync<IReadOnlyList<EligibleAgentDto>>(response);
+        var agents = await OpsSphereSqliteFactory.ReadDataAsync<IReadOnlyList<EligibleAgentDto>>(response);
         Assert.Contains(agents, a => a.UserId == SeedIds.Users.AgentNovabank);
         Assert.DoesNotContain(agents, a => a.UserId == inactiveAgentId);
         Assert.DoesNotContain(agents, a => a.UserId == outOfScopeAgentId);
@@ -421,11 +414,11 @@ public sealed class TicketAssignmentApiTests
             description
         });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        return await ReadDataAsync<CreateTicketResult>(response);
+        return await OpsSphereSqliteFactory.ReadDataAsync<CreateTicketResult>(response);
     }
 
     private static async Task<Guid> AddAgentAsync(
-        TicketAssignmentApiFactory factory,
+        OpsSphereSqliteFactory factory,
         string displayName,
         bool isActive,
         string scopeType,
@@ -470,7 +463,7 @@ public sealed class TicketAssignmentApiTests
     }
 
     private static async Task<Guid> AddTicketDirectlyAsync(
-        TicketAssignmentApiFactory factory,
+        OpsSphereSqliteFactory factory,
         Guid accountId,
         Guid campaignId,
         Guid customerId,
@@ -530,7 +523,7 @@ public sealed class TicketAssignmentApiTests
         return ticketId;
     }
 
-    private static async Task SetTicketStatusAsync(TicketAssignmentApiFactory factory, Guid ticketId, TicketStatus status)
+    private static async Task SetTicketStatusAsync(OpsSphereSqliteFactory factory, Guid ticketId, TicketStatus status)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
@@ -539,48 +532,12 @@ public sealed class TicketAssignmentApiTests
         await db.SaveChangesAsync();
     }
 
-    private static async Task<int> CountStatusHistoryAsync(TicketAssignmentApiFactory factory, Guid ticketId)
+    private static async Task<int> CountStatusHistoryAsync(OpsSphereSqliteFactory factory, Guid ticketId)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
         return await db.TicketStatusHistory.AsNoTracking().CountAsync(h => h.TicketId == ticketId);
     }
-
-    private static async Task<HttpClient> CreateAuthenticatedClientAsync(TicketAssignmentApiFactory factory, string email)
-    {
-        var client = factory.CreateClient();
-        var loginResponse = await client.PostAsJsonAsync("/api/auth/login", new
-        {
-            email,
-            password = OpsSphereSeedData.LocalDemoPassword
-        });
-        loginResponse.EnsureSuccessStatusCode();
-        var loginBody = await ReadResponseAsync<ApiResponse<LoginData>>(loginResponse);
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", loginBody.Data.AccessToken);
-        return client;
-    }
-
-    private static async Task<T> ReadDataAsync<T>(HttpResponseMessage response)
-    {
-        var envelope = await ReadResponseAsync<ApiResponse<T>>(response);
-        return envelope.Data;
-    }
-
-    private static async Task<ApiErrorResponse> ReadErrorAsync(HttpResponseMessage response) =>
-        await ReadResponseAsync<ApiErrorResponse>(response);
-
-    private static async Task<T> ReadResponseAsync<T>(HttpResponseMessage response)
-    {
-        var json = await response.Content.ReadAsStringAsync();
-        var value = JsonSerializer.Deserialize<T>(json, JsonOptions);
-        return value ?? throw new InvalidOperationException($"Could not deserialize {typeof(T).Name} from {(int)response.StatusCode}: {json}");
-    }
-
-    private sealed record ApiResponse<T>(T Data);
-    private sealed record ApiErrorResponse(ApiError Error);
-    private sealed record ApiError(string Code, string Message, IReadOnlyList<ApiErrorDetail> Details);
-    private sealed record ApiErrorDetail(string? Field, string Message);
-    private sealed record LoginData(string AccessToken);
 
     private sealed record CreateTicketResult(
         Guid Id,
@@ -603,70 +560,4 @@ public sealed class TicketAssignmentApiTests
         string DisplayName,
         string? ScopeType,
         string? ScopeReference);
-
-    internal sealed class TicketAssignmentApiFactory : WebApplicationFactory<Program>
-    {
-        public const string JwtSigningKey = "integration-testing-only-fictional-jwt-signing-key";
-
-        private readonly SqliteConnection connection = new("Data Source=:memory:");
-
-        public static async Task<TicketAssignmentApiFactory> CreateAsync()
-        {
-            ConfigureEnvironment();
-            var factory = new TicketAssignmentApiFactory();
-            await factory.connection.OpenAsync();
-            await factory.InitializeDatabaseAsync();
-            return factory;
-        }
-
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureAppConfiguration((_, config) =>
-            {
-                config.AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["ConnectionStrings:DefaultConnection"] = "Server=(local);Database=OpsSphereTicketAssignmentTests;Trusted_Connection=True;TrustServerCertificate=True;",
-                    ["SeedData:Enabled"] = "false",
-                    ["Jwt:Issuer"] = "OpsSphere.Tests",
-                    ["Jwt:Audience"] = "OpsSphere.Tests.Angular",
-                    ["Jwt:ExpirationMinutes"] = "60",
-                    ["Jwt:SigningKey"] = JwtSigningKey
-                });
-            });
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<IDbContextOptionsConfiguration<OpsSphereDbContext>>();
-                services.RemoveAll<DbContextOptions<OpsSphereDbContext>>();
-                services.AddDbContext<OpsSphereDbContext>(options => options.UseSqlite(connection));
-            });
-        }
-
-        private static void ConfigureEnvironment()
-        {
-            Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", "Server=(local);Database=OpsSphereTicketAssignmentTests;Trusted_Connection=True;TrustServerCertificate=True;");
-            Environment.SetEnvironmentVariable("SeedData__Enabled", "false");
-            Environment.SetEnvironmentVariable("Jwt__Issuer", "OpsSphere.Tests");
-            Environment.SetEnvironmentVariable("Jwt__Audience", "OpsSphere.Tests.Angular");
-            Environment.SetEnvironmentVariable("Jwt__ExpirationMinutes", "60");
-            Environment.SetEnvironmentVariable("Jwt__SigningKey", JwtSigningKey);
-        }
-
-        public override async ValueTask DisposeAsync()
-        {
-            await connection.DisposeAsync();
-            await base.DisposeAsync();
-        }
-
-        private async Task InitializeDatabaseAsync()
-        {
-            using var scope = Services.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
-            await dbContext.Database.EnsureDeletedAsync();
-            await dbContext.Database.EnsureCreatedAsync();
-
-            var seeder = scope.ServiceProvider.GetRequiredService<OpsSphereDataSeeder>();
-            await seeder.SeedAsync();
-        }
-    }
 }

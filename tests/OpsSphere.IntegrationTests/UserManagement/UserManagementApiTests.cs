@@ -1,19 +1,12 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using OpsSphere.Domain.Entities;
 using OpsSphere.Infrastructure.Persistence;
 using OpsSphere.Infrastructure.Persistence.SeedData;
+using OpsSphere.IntegrationTests.TestInfrastructure;
 
 namespace OpsSphere.IntegrationTests.UserManagement;
 
@@ -30,11 +23,11 @@ public sealed class UserManagementApiTests
     [Fact]
     public async Task Admin_CanListViewCreateUpdateDeactivateAndAssignRoles()
     {
-        await using var factory = await UserManagementApiFactory.CreateAsync();
-        var client = await CreateAuthenticatedClientAsync(factory, AdminEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var client = await factory.CreateAuthenticatedClientAsync(AdminEmail);
 
         var listResponse = await client.GetAsync("/api/users");
-        var listBody = await ReadResponseAsync<ApiResponse<IReadOnlyList<UserSummaryResponse>>>(listResponse);
+        var listBody = await OpsSphereSqliteFactory.ReadResponseAsync<OpsSphereSqliteFactory.ApiResponse<IReadOnlyList<UserSummaryResponse>>>(listResponse);
 
         Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
         Assert.Contains(listBody.Data, user => user.Email == AdminEmail);
@@ -48,7 +41,7 @@ public sealed class UserManagementApiTests
             displayName = "Marisol Vega",
             temporaryPassword = TemporaryPassword
         });
-        var created = await ReadResponseAsync<ApiResponse<UserDetailResponse>>(createResponse);
+        var created = await OpsSphereSqliteFactory.ReadResponseAsync<OpsSphereSqliteFactory.ApiResponse<UserDetailResponse>>(createResponse);
 
         Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
         Assert.Equal(ManagedUserEmail, created.Data.Email);
@@ -58,7 +51,7 @@ public sealed class UserManagementApiTests
         await factory.AssertAuditAsync("UserCreated", created.Data.Id);
 
         var viewResponse = await client.GetAsync($"/api/users/{created.Data.Id}");
-        var viewed = await ReadResponseAsync<ApiResponse<UserDetailResponse>>(viewResponse);
+        var viewed = await OpsSphereSqliteFactory.ReadResponseAsync<OpsSphereSqliteFactory.ApiResponse<UserDetailResponse>>(viewResponse);
 
         Assert.Equal(HttpStatusCode.OK, viewResponse.StatusCode);
         Assert.Equal(created.Data.Id, viewed.Data.Id);
@@ -72,7 +65,7 @@ public sealed class UserManagementApiTests
             lastName = "Ortega",
             displayName = "Marisol Ortega"
         });
-        var updated = await ReadResponseAsync<ApiResponse<UserDetailResponse>>(updateResponse);
+        var updated = await OpsSphereSqliteFactory.ReadResponseAsync<OpsSphereSqliteFactory.ApiResponse<UserDetailResponse>>(updateResponse);
 
         Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
         Assert.Equal(ManagedUserUpdatedEmail, updated.Data.Email);
@@ -84,7 +77,7 @@ public sealed class UserManagementApiTests
         {
             roleIds = new[] { SeedIds.Roles.Agent }
         });
-        var agentRoleUser = await ReadResponseAsync<ApiResponse<UserDetailResponse>>(assignAgentRoleResponse);
+        var agentRoleUser = await OpsSphereSqliteFactory.ReadResponseAsync<OpsSphereSqliteFactory.ApiResponse<UserDetailResponse>>(assignAgentRoleResponse);
 
         Assert.Equal(HttpStatusCode.OK, assignAgentRoleResponse.StatusCode);
         Assert.Contains(agentRoleUser.Data.Roles, role => role.Name == "Agent");
@@ -95,7 +88,7 @@ public sealed class UserManagementApiTests
         {
             roleIds = new[] { SeedIds.Roles.Viewer }
         });
-        var viewerRoleUser = await ReadResponseAsync<ApiResponse<UserDetailResponse>>(replaceRoleResponse);
+        var viewerRoleUser = await OpsSphereSqliteFactory.ReadResponseAsync<OpsSphereSqliteFactory.ApiResponse<UserDetailResponse>>(replaceRoleResponse);
 
         Assert.Equal(HttpStatusCode.OK, replaceRoleResponse.StatusCode);
         Assert.DoesNotContain(viewerRoleUser.Data.Roles, role => role.Name == "Agent");
@@ -109,7 +102,7 @@ public sealed class UserManagementApiTests
         await factory.AssertAuditAsync("UserDeactivated", created.Data.Id);
 
         var deactivatedViewResponse = await client.GetAsync($"/api/users/{created.Data.Id}");
-        var deactivatedUser = await ReadResponseAsync<ApiResponse<UserDetailResponse>>(deactivatedViewResponse);
+        var deactivatedUser = await OpsSphereSqliteFactory.ReadResponseAsync<OpsSphereSqliteFactory.ApiResponse<UserDetailResponse>>(deactivatedViewResponse);
 
         Assert.False(deactivatedUser.Data.IsActive);
         Assert.NotNull(deactivatedUser.Data.DeactivatedAt);
@@ -118,8 +111,8 @@ public sealed class UserManagementApiTests
     [Fact]
     public async Task CreateUser_WithDuplicateEmail_Returns409()
     {
-        await using var factory = await UserManagementApiFactory.CreateAsync();
-        var client = await CreateAuthenticatedClientAsync(factory, AdminEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var client = await factory.CreateAuthenticatedClientAsync(AdminEmail);
 
         var response = await client.PostAsJsonAsync("/api/users", new
         {
@@ -129,7 +122,7 @@ public sealed class UserManagementApiTests
             displayName = "Tomas Ibarra",
             temporaryPassword = TemporaryPassword
         });
-        var error = await ReadResponseAsync<ApiErrorResponse>(response);
+        var error = await OpsSphereSqliteFactory.ReadResponseAsync<OpsSphereSqliteFactory.ApiErrorResponse>(response);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.Equal("conflict", error.Error.Code);
@@ -139,8 +132,8 @@ public sealed class UserManagementApiTests
     [Fact]
     public async Task CreateUser_WithMissingRequiredFields_ReturnsValidationErrors()
     {
-        await using var factory = await UserManagementApiFactory.CreateAsync();
-        var client = await CreateAuthenticatedClientAsync(factory, AdminEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var client = await factory.CreateAuthenticatedClientAsync(AdminEmail);
 
         var response = await client.PostAsJsonAsync("/api/users", new
         {
@@ -150,7 +143,7 @@ public sealed class UserManagementApiTests
             displayName = "",
             temporaryPassword = ""
         });
-        var error = await ReadResponseAsync<ApiErrorResponse>(response);
+        var error = await OpsSphereSqliteFactory.ReadResponseAsync<OpsSphereSqliteFactory.ApiErrorResponse>(response);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("validation_error", error.Error.Code);
@@ -163,8 +156,8 @@ public sealed class UserManagementApiTests
     [Fact]
     public async Task DeactivatedUser_CannotAuthenticate()
     {
-        await using var factory = await UserManagementApiFactory.CreateAsync();
-        var adminClient = await CreateAuthenticatedClientAsync(factory, AdminEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var adminClient = await factory.CreateAuthenticatedClientAsync(AdminEmail);
 
         var createResponse = await adminClient.PostAsJsonAsync("/api/users", new
         {
@@ -174,7 +167,7 @@ public sealed class UserManagementApiTests
             displayName = "Marisol Vega",
             temporaryPassword = TemporaryPassword
         });
-        var created = await ReadResponseAsync<ApiResponse<UserDetailResponse>>(createResponse);
+        var created = await OpsSphereSqliteFactory.ReadResponseAsync<OpsSphereSqliteFactory.ApiResponse<UserDetailResponse>>(createResponse);
 
         var roleResponse = await adminClient.PutAsJsonAsync($"/api/users/{created.Data.Id}/roles", new
         {
@@ -197,7 +190,7 @@ public sealed class UserManagementApiTests
             email = ManagedUserEmail,
             password = TemporaryPassword
         });
-        var error = await ReadResponseAsync<ApiErrorResponse>(deactivatedLoginResponse);
+        var error = await OpsSphereSqliteFactory.ReadResponseAsync<OpsSphereSqliteFactory.ApiErrorResponse>(deactivatedLoginResponse);
 
         Assert.Equal(HttpStatusCode.Unauthorized, deactivatedLoginResponse.StatusCode);
         Assert.Equal("Invalid email or password.", error.Error.Message);
@@ -206,8 +199,8 @@ public sealed class UserManagementApiTests
     [Fact]
     public async Task NonAdmin_CannotManageUsers()
     {
-        await using var factory = await UserManagementApiFactory.CreateAsync();
-        var client = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var client = await factory.CreateAuthenticatedClientAsync(AgentEmail);
 
         var listResponse = await client.GetAsync("/api/users");
         var createResponse = await client.PostAsJsonAsync("/api/users", new
@@ -231,8 +224,8 @@ public sealed class UserManagementApiTests
     [Fact]
     public async Task UserManagementResponses_DoNotExposeSensitiveFields()
     {
-        await using var factory = await UserManagementApiFactory.CreateAsync();
-        var client = await CreateAuthenticatedClientAsync(factory, AdminEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var client = await factory.CreateAuthenticatedClientAsync(AdminEmail);
 
         var createResponse = await client.PostAsJsonAsync("/api/users", new
         {
@@ -242,7 +235,7 @@ public sealed class UserManagementApiTests
             displayName = "Marisol Vega",
             temporaryPassword = TemporaryPassword
         });
-        var created = await ReadResponseAsync<ApiResponse<UserDetailResponse>>(createResponse);
+        var created = await OpsSphereSqliteFactory.ReadResponseAsync<OpsSphereSqliteFactory.ApiResponse<UserDetailResponse>>(createResponse);
 
         var responses = new[]
         {
@@ -267,24 +260,8 @@ public sealed class UserManagementApiTests
         }
     }
 
-    private static async Task<HttpClient> CreateAuthenticatedClientAsync(UserManagementApiFactory factory, string email)
-    {
-        var client = factory.CreateClient();
-        var loginResponse = await client.PostAsJsonAsync("/api/auth/login", new
-        {
-            email,
-            password = OpsSphereSeedData.LocalDemoPassword
-        });
-        loginResponse.EnsureSuccessStatusCode();
-        var loginBody = await ReadResponseAsync<LoginApiResponse>(loginResponse);
-        client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", loginBody.Data.AccessToken);
-
-        return client;
-    }
-
     private static async Task AssertResponseDoesNotExposeSensitiveDataAsync(
-        UserManagementApiFactory factory,
+        OpsSphereSqliteFactory factory,
         HttpResponseMessage response,
         string? submittedTemporaryPassword = null)
     {
@@ -298,7 +275,7 @@ public sealed class UserManagementApiTests
             "refreshToken",
             "jwt",
             "secret",
-            UserManagementApiFactory.JwtSigningKey
+            OpsSphereSqliteFactory.JwtSigningKey
         };
 
         foreach (var term in forbiddenTerms)
@@ -316,21 +293,6 @@ public sealed class UserManagementApiTests
             Assert.DoesNotContain(passwordHash, json, StringComparison.Ordinal);
         }
     }
-
-    private static async Task<T> ReadResponseAsync<T>(HttpResponseMessage response)
-    {
-        var json = await response.Content.ReadAsStringAsync();
-        var value = JsonSerializer.Deserialize<T>(json, JsonOptions);
-
-        return value ?? throw new InvalidOperationException($"Could not deserialize {typeof(T).Name}.");
-    }
-
-    private sealed record ApiResponse<T>(T Data);
-    private sealed record ApiErrorResponse(ApiError Error);
-    private sealed record ApiError(string Code, string Message, IReadOnlyList<ApiErrorDetail> Details);
-    private sealed record ApiErrorDetail(string? Field, string Message);
-    private sealed record LoginApiResponse(LoginData Data);
-    private sealed record LoginData(string AccessToken);
     private sealed record UserSummaryResponse(
         Guid Id,
         string Email,
@@ -347,104 +309,4 @@ public sealed class UserManagementApiTests
         DateTime? DeactivatedAt,
         IReadOnlyList<RoleResponse> Roles);
     private sealed record RoleResponse(Guid Id, string Name);
-
-    internal sealed class UserManagementApiFactory : WebApplicationFactory<Program>
-    {
-        public const string JwtSigningKey = "integration-testing-only-fictional-jwt-signing-key";
-
-        private readonly SqliteConnection connection = new("Data Source=:memory:");
-
-        public static async Task<UserManagementApiFactory> CreateAsync()
-        {
-            ConfigureEnvironment();
-            var factory = new UserManagementApiFactory();
-            await factory.connection.OpenAsync();
-            await factory.InitializeDatabaseAsync();
-
-            return factory;
-        }
-
-        public async Task<IReadOnlyList<string>> GetPasswordHashesAsync()
-        {
-            using var scope = Services.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
-
-            return await dbContext.Users
-                .AsNoTracking()
-                .Select(user => user.PasswordHash)
-                .ToArrayAsync();
-        }
-
-        public async Task AssertAuditAsync(string action, Guid entityId)
-        {
-            using var scope = Services.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
-
-            var audit = await dbContext.AuditLogs
-                .AsNoTracking()
-                .Where(log => log.Action == action && log.EntityType == "User" && log.EntityId == entityId)
-                .OrderByDescending(log => log.CreatedAt)
-                .FirstOrDefaultAsync();
-
-            Assert.NotNull(audit);
-            Assert.Equal(SeedIds.Users.Admin, audit.ActorUserId);
-            Assert.False(string.IsNullOrWhiteSpace(audit.CorrelationId));
-            Assert.DoesNotContain("password", audit.PreviousValue ?? string.Empty, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("password", audit.NewValue ?? string.Empty, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain(JwtSigningKey, audit.PreviousValue ?? string.Empty, StringComparison.Ordinal);
-            Assert.DoesNotContain(JwtSigningKey, audit.NewValue ?? string.Empty, StringComparison.Ordinal);
-        }
-
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureAppConfiguration((_, config) =>
-            {
-                config.AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["ConnectionStrings:DefaultConnection"] = "Server=(local);Database=OpsSphereUserManagementTests;Trusted_Connection=True;TrustServerCertificate=True;",
-                    ["SeedData:Enabled"] = "false",
-                    ["Jwt:Issuer"] = "OpsSphere.Tests",
-                    ["Jwt:Audience"] = "OpsSphere.Tests.Angular",
-                    ["Jwt:ExpirationMinutes"] = "60",
-                    ["Jwt:SigningKey"] = JwtSigningKey
-                });
-            });
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<IDbContextOptionsConfiguration<OpsSphereDbContext>>();
-                services.RemoveAll<DbContextOptions<OpsSphereDbContext>>();
-                services.AddDbContext<OpsSphereDbContext>(options => options.UseSqlite(connection));
-            });
-        }
-
-        private static void ConfigureEnvironment()
-        {
-            Environment.SetEnvironmentVariable(
-                "ConnectionStrings__DefaultConnection",
-                "Server=(local);Database=OpsSphereUserManagementTests;Trusted_Connection=True;TrustServerCertificate=True;");
-            Environment.SetEnvironmentVariable("SeedData__Enabled", "false");
-            Environment.SetEnvironmentVariable("Jwt__Issuer", "OpsSphere.Tests");
-            Environment.SetEnvironmentVariable("Jwt__Audience", "OpsSphere.Tests.Angular");
-            Environment.SetEnvironmentVariable("Jwt__ExpirationMinutes", "60");
-            Environment.SetEnvironmentVariable("Jwt__SigningKey", JwtSigningKey);
-        }
-
-        public override async ValueTask DisposeAsync()
-        {
-            await connection.DisposeAsync();
-            await base.DisposeAsync();
-        }
-
-        private async Task InitializeDatabaseAsync()
-        {
-            using var scope = Services.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
-            await dbContext.Database.EnsureDeletedAsync();
-            await dbContext.Database.EnsureCreatedAsync();
-
-            var seeder = scope.ServiceProvider.GetRequiredService<OpsSphereDataSeeder>();
-            await seeder.SeedAsync();
-        }
-    }
 }

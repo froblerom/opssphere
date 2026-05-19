@@ -1,17 +1,11 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using OpsSphere.Infrastructure.Persistence;
 using OpsSphere.Infrastructure.Persistence.SeedData;
+using OpsSphere.IntegrationTests.TestInfrastructure;
 
 namespace OpsSphere.IntegrationTests.Middleware;
 
@@ -25,7 +19,7 @@ public sealed class CorrelationIdTests
     [Fact]
     public async Task Request_WithoutCorrelationId_GeneratesNewHeader()
     {
-        await using var factory = await CorrelationApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
         var client = factory.CreateClient();
 
         var response = await client.GetAsync("/health");
@@ -39,7 +33,7 @@ public sealed class CorrelationIdTests
     [Fact]
     public async Task Request_WithSafeCorrelationId_ReusesItInResponse()
     {
-        await using var factory = await CorrelationApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Add(CorrelationIdHeader, "test-correlation-123");
 
@@ -59,7 +53,7 @@ public sealed class CorrelationIdTests
     [InlineData("")]                                      // empty
     public async Task Request_WithUnsafeCorrelationId_GeneratesNewSafeHeader(string unsafeId)
     {
-        await using var factory = await CorrelationApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
         var client = factory.CreateClient();
 
         if (!string.IsNullOrEmpty(unsafeId))
@@ -83,7 +77,7 @@ public sealed class CorrelationIdTests
     [Fact]
     public async Task ErrorResponse_IncludesCorrelationId_FromHeader()
     {
-        await using var factory = await CorrelationApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Add(CorrelationIdHeader, "err-corr-id-abc");
 
@@ -104,7 +98,7 @@ public sealed class CorrelationIdTests
     [Fact]
     public async Task HealthResponse_IncludesCorrelationIdInBody()
     {
-        await using var factory = await CorrelationApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Add(CorrelationIdHeader, "health-corr-abc");
 
@@ -119,78 +113,11 @@ public sealed class CorrelationIdTests
     [Fact]
     public async Task Unauthenticated_Request_Returns401_WithCorrelationIdHeader()
     {
-        await using var factory = await CorrelationApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
 
         var response = await factory.CreateClient().GetAsync("/api/auth/me");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.True(response.Headers.Contains(CorrelationIdHeader));
-    }
-
-    internal sealed class CorrelationApiFactory : WebApplicationFactory<Program>
-    {
-        public const string JwtSigningKey = "integration-testing-only-fictional-jwt-signing-key";
-
-        private readonly SqliteConnection connection = new("Data Source=:memory:");
-
-        public static async Task<CorrelationApiFactory> CreateAsync()
-        {
-            ConfigureEnvironment();
-            var factory = new CorrelationApiFactory();
-            await factory.connection.OpenAsync();
-            await factory.InitializeDatabaseAsync();
-            return factory;
-        }
-
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureAppConfiguration((_, config) =>
-            {
-                config.AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["ConnectionStrings:DefaultConnection"] = "Server=(local);Database=OpsSphereCorrelationTests;Trusted_Connection=True;TrustServerCertificate=True;",
-                    ["SeedData:Enabled"] = "false",
-                    ["Jwt:Issuer"] = "OpsSphere.Tests",
-                    ["Jwt:Audience"] = "OpsSphere.Tests.Angular",
-                    ["Jwt:ExpirationMinutes"] = "60",
-                    ["Jwt:SigningKey"] = JwtSigningKey
-                });
-            });
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<IDbContextOptionsConfiguration<OpsSphereDbContext>>();
-                services.RemoveAll<DbContextOptions<OpsSphereDbContext>>();
-                services.AddDbContext<OpsSphereDbContext>(options => options.UseSqlite(connection));
-            });
-        }
-
-        private static void ConfigureEnvironment()
-        {
-            Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection",
-                "Server=(local);Database=OpsSphereCorrelationTests;Trusted_Connection=True;TrustServerCertificate=True;");
-            Environment.SetEnvironmentVariable("SeedData__Enabled", "false");
-            Environment.SetEnvironmentVariable("Jwt__Issuer", "OpsSphere.Tests");
-            Environment.SetEnvironmentVariable("Jwt__Audience", "OpsSphere.Tests.Angular");
-            Environment.SetEnvironmentVariable("Jwt__ExpirationMinutes", "60");
-            Environment.SetEnvironmentVariable("Jwt__SigningKey", JwtSigningKey);
-        }
-
-        public override async ValueTask DisposeAsync()
-        {
-            await connection.DisposeAsync();
-            await base.DisposeAsync();
-        }
-
-        private async Task InitializeDatabaseAsync()
-        {
-            using var scope = Services.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
-            await dbContext.Database.EnsureDeletedAsync();
-            await dbContext.Database.EnsureCreatedAsync();
-
-            var seeder = scope.ServiceProvider.GetRequiredService<OpsSphereDataSeeder>();
-            await seeder.SeedAsync();
-        }
     }
 }

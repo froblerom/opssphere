@@ -1,20 +1,13 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using OpsSphere.Domain.Entities;
 using OpsSphere.Domain.Enums;
 using OpsSphere.Infrastructure.Persistence;
 using OpsSphere.Infrastructure.Persistence.SeedData;
+using OpsSphere.IntegrationTests.TestInfrastructure;
 
 namespace OpsSphere.IntegrationTests.AuditManagement;
 
@@ -31,14 +24,14 @@ public sealed class AuditApiTests
     [Fact]
     public async Task Admin_CanQueryAuditLogs_Returns200()
     {
-        await using var factory = await AuditApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
         var ids = await ArrangeAuditLogsAsync(factory);
-        var admin = await CreateAuthenticatedClientAsync(factory, AdminEmail);
+        var admin = await factory.CreateAuthenticatedClientAsync(AdminEmail);
 
         var response = await admin.GetAsync("/api/audit-logs");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var body = await ReadResponseAsync<PagedAuditListResponse>(response);
+        var body = await OpsSphereSqliteFactory.ReadResponseAsync<PagedAuditListResponse>(response);
         Assert.Contains(body.Data, item => item.Id == ids.NovaBankTicketAuditId);
         Assert.Contains(body.Data, item => item.Id == ids.UserAuditId);
     }
@@ -46,14 +39,14 @@ public sealed class AuditApiTests
     [Fact]
     public async Task OperationsManager_CanQueryAuditLogs_ScopedToRegion()
     {
-        await using var factory = await AuditApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
         var ids = await ArrangeAuditLogsAsync(factory);
-        var manager = await CreateAuthenticatedClientAsync(factory, ManagerEmail);
+        var manager = await factory.CreateAuthenticatedClientAsync(ManagerEmail);
 
         var response = await manager.GetAsync("/api/audit-logs");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var body = await ReadResponseAsync<PagedAuditListResponse>(response);
+        var body = await OpsSphereSqliteFactory.ReadResponseAsync<PagedAuditListResponse>(response);
         Assert.Contains(body.Data, item => item.Id == ids.NovaBankTicketAuditId);
         Assert.DoesNotContain(body.Data, item => item.Id == ids.StreamlyTicketAuditId);
         Assert.DoesNotContain(body.Data, item => item.Id == ids.UserAuditId);
@@ -62,14 +55,14 @@ public sealed class AuditApiTests
     [Fact]
     public async Task Supervisor_CanQueryAuditLogs_ScopedToAccount()
     {
-        await using var factory = await AuditApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
         var ids = await ArrangeAuditLogsAsync(factory);
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
 
         var response = await supervisor.GetAsync("/api/audit-logs");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var body = await ReadResponseAsync<PagedAuditListResponse>(response);
+        var body = await OpsSphereSqliteFactory.ReadResponseAsync<PagedAuditListResponse>(response);
         Assert.Contains(body.Data, item => item.Id == ids.NovaBankTicketAuditId);
         Assert.Contains(body.Data, item => item.Id == ids.NovaBankCustomerAuditId);
         Assert.DoesNotContain(body.Data, item => item.Id == ids.StreamlyTicketAuditId);
@@ -79,8 +72,8 @@ public sealed class AuditApiTests
     [Fact]
     public async Task Agent_CannotQueryAuditLogs_Returns403()
     {
-        await using var factory = await AuditApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
 
         var response = await agent.GetAsync("/api/audit-logs");
 
@@ -90,14 +83,14 @@ public sealed class AuditApiTests
     [Fact]
     public async Task Viewer_CanQueryAuditLogs_ScopedToScope()
     {
-        await using var factory = await AuditApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
         var ids = await ArrangeAuditLogsAsync(factory);
-        var viewer = await CreateAuthenticatedClientAsync(factory, ViewerEmail);
+        var viewer = await factory.CreateAuthenticatedClientAsync(ViewerEmail);
 
         var response = await viewer.GetAsync("/api/audit-logs");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var body = await ReadResponseAsync<PagedAuditListResponse>(response);
+        var body = await OpsSphereSqliteFactory.ReadResponseAsync<PagedAuditListResponse>(response);
         Assert.Contains(body.Data, item => item.Id == ids.NovaBankTicketAuditId);
         Assert.DoesNotContain(body.Data, item => item.Id == ids.StreamlyTicketAuditId);
     }
@@ -105,7 +98,7 @@ public sealed class AuditApiTests
     [Fact]
     public async Task Unauthenticated_CannotQueryAuditLogs_Returns401()
     {
-        await using var factory = await AuditApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
 
         var response = await factory.CreateClient().GetAsync("/api/audit-logs");
 
@@ -115,9 +108,9 @@ public sealed class AuditApiTests
     [Fact]
     public async Task NonAdmin_CannotGetAuditLogById_OutOfScope_Returns404()
     {
-        await using var factory = await AuditApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
         var ids = await ArrangeAuditLogsAsync(factory);
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
 
         var response = await supervisor.GetAsync($"/api/audit-logs/{ids.StreamlyTicketAuditId}");
 
@@ -127,14 +120,14 @@ public sealed class AuditApiTests
     [Fact]
     public async Task Admin_CanGetAuditLogById_Returns200()
     {
-        await using var factory = await AuditApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
         var ids = await ArrangeAuditLogsAsync(factory);
-        var admin = await CreateAuthenticatedClientAsync(factory, AdminEmail);
+        var admin = await factory.CreateAuthenticatedClientAsync(AdminEmail);
 
         var response = await admin.GetAsync($"/api/audit-logs/{ids.NovaBankTicketAuditId}");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var body = await ReadResponseAsync<ApiResponse<AuditDetailResponse>>(response);
+        var body = await OpsSphereSqliteFactory.ReadResponseAsync<OpsSphereSqliteFactory.ApiResponse<AuditDetailResponse>>(response);
         Assert.Equal(ids.NovaBankTicketAuditId, body.Data.Id);
         Assert.Equal("TicketCreated", body.Data.Action);
         Assert.NotNull(body.Data.NewValue);
@@ -144,9 +137,9 @@ public sealed class AuditApiTests
     [Fact]
     public async Task NonAdmin_CanGetAuditLogById_InScope_Returns200()
     {
-        await using var factory = await AuditApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
         var ids = await ArrangeAuditLogsAsync(factory);
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
 
         var response = await supervisor.GetAsync($"/api/audit-logs/{ids.NovaBankTicketAuditId}");
 
@@ -156,14 +149,14 @@ public sealed class AuditApiTests
     [Fact]
     public async Task EntityAuditHistory_Ticket_IsScopedAndPaged()
     {
-        await using var factory = await AuditApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
         var ids = await ArrangeAuditLogsAsync(factory);
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
 
         var response = await supervisor.GetAsync($"/api/audit-logs/entity/Ticket/{ids.NovaBankTicketId}");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var body = await ReadResponseAsync<PagedAuditListResponse>(response);
+        var body = await OpsSphereSqliteFactory.ReadResponseAsync<PagedAuditListResponse>(response);
         Assert.Contains(body.Data, item => item.EntityId == ids.NovaBankTicketId);
         Assert.DoesNotContain(body.Data, item => item.EntityId == ids.StreamlyTicketId);
     }
@@ -171,9 +164,9 @@ public sealed class AuditApiTests
     [Fact]
     public async Task Supervisor_CannotGetEntityAuditHistory_OutOfScope_Returns404()
     {
-        await using var factory = await AuditApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
         var ids = await ArrangeAuditLogsAsync(factory);
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
 
         var response = await supervisor.GetAsync($"/api/audit-logs/entity/Ticket/{ids.StreamlyTicketId}");
 
@@ -183,17 +176,17 @@ public sealed class AuditApiTests
     [Fact]
     public async Task AuditFilters_ReturnExpectedRows()
     {
-        await using var factory = await AuditApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
         var ids = await ArrangeAuditLogsAsync(factory);
-        var admin = await CreateAuthenticatedClientAsync(factory, AdminEmail);
+        var admin = await factory.CreateAuthenticatedClientAsync(AdminEmail);
 
-        var byActor = await ReadResponseAsync<PagedAuditListResponse>(
+        var byActor = await OpsSphereSqliteFactory.ReadResponseAsync<PagedAuditListResponse>(
             await admin.GetAsync($"/api/audit-logs?actorUserId={SeedIds.Users.SupervisorNovabank}"));
-        var byAction = await ReadResponseAsync<PagedAuditListResponse>(
+        var byAction = await OpsSphereSqliteFactory.ReadResponseAsync<PagedAuditListResponse>(
             await admin.GetAsync("/api/audit-logs?action=CustomerUpdated"));
-        var byEntity = await ReadResponseAsync<PagedAuditListResponse>(
+        var byEntity = await OpsSphereSqliteFactory.ReadResponseAsync<PagedAuditListResponse>(
             await admin.GetAsync($"/api/audit-logs?entityType=Ticket&entityId={ids.NovaBankTicketId}"));
-        var byAccount = await ReadResponseAsync<PagedAuditListResponse>(
+        var byAccount = await OpsSphereSqliteFactory.ReadResponseAsync<PagedAuditListResponse>(
             await admin.GetAsync($"/api/audit-logs?accountId={SeedIds.Accounts.NovaBank}"));
 
         Assert.Contains(byActor.Data, item => item.ActorUserId == SeedIds.Users.SupervisorNovabank);
@@ -206,16 +199,16 @@ public sealed class AuditApiTests
     [Fact]
     public async Task AuditFilters_ByDateRange_ReturnExpectedRows()
     {
-        await using var factory = await AuditApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
         var ids = await ArrangeAuditLogsAsync(factory);
         await SetAuditCreatedAtAsync(factory, ids.NovaBankTicketAuditId, new DateTime(2026, 05, 01, 0, 0, 0, DateTimeKind.Utc));
         await SetAuditCreatedAtAsync(factory, ids.NovaBankCustomerAuditId, new DateTime(2026, 05, 10, 0, 0, 0, DateTimeKind.Utc));
-        var admin = await CreateAuthenticatedClientAsync(factory, AdminEmail);
+        var admin = await factory.CreateAuthenticatedClientAsync(AdminEmail);
 
         var response = await admin.GetAsync("/api/audit-logs?fromUtc=2026-05-09T00:00:00Z&toUtc=2026-05-11T00:00:00Z");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var body = await ReadResponseAsync<PagedAuditListResponse>(response);
+        var body = await OpsSphereSqliteFactory.ReadResponseAsync<PagedAuditListResponse>(response);
         Assert.Contains(body.Data, item => item.Id == ids.NovaBankCustomerAuditId);
         Assert.DoesNotContain(body.Data, item => item.Id == ids.NovaBankTicketAuditId);
     }
@@ -223,8 +216,8 @@ public sealed class AuditApiTests
     [Fact]
     public async Task InvalidFilterDateRange_Returns400()
     {
-        await using var factory = await AuditApiFactory.CreateAsync();
-        var admin = await CreateAuthenticatedClientAsync(factory, AdminEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var admin = await factory.CreateAuthenticatedClientAsync(AdminEmail);
 
         var response = await admin.GetAsync("/api/audit-logs?fromUtc=2026-05-11T00:00:00Z&toUtc=2026-05-09T00:00:00Z");
 
@@ -234,9 +227,9 @@ public sealed class AuditApiTests
     [Fact]
     public async Task AuditLogs_CannotBeModified_NoPutDeleteEndpoints()
     {
-        await using var factory = await AuditApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
         var ids = await ArrangeAuditLogsAsync(factory);
-        var admin = await CreateAuthenticatedClientAsync(factory, AdminEmail);
+        var admin = await factory.CreateAuthenticatedClientAsync(AdminEmail);
 
         var put = await admin.PutAsJsonAsync($"/api/audit-logs/{ids.NovaBankTicketAuditId}", new { action = "Changed" });
         var delete = await admin.DeleteAsync($"/api/audit-logs/{ids.NovaBankTicketAuditId}");
@@ -248,8 +241,8 @@ public sealed class AuditApiTests
     [Fact]
     public async Task TicketCreated_ProducesAuditRecord_QueryableViaApi()
     {
-        await using var factory = await AuditApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
 
         var createResponse = await supervisor.PostAsJsonAsync("/api/tickets", new
         {
@@ -262,21 +255,21 @@ public sealed class AuditApiTests
             description = "Creates an audit log through the existing ticket write path."
         });
         createResponse.EnsureSuccessStatusCode();
-        var created = await ReadResponseAsync<ApiResponse<CreateTicketResponse>>(createResponse);
+        var created = await OpsSphereSqliteFactory.ReadResponseAsync<OpsSphereSqliteFactory.ApiResponse<CreateTicketResponse>>(createResponse);
 
         var auditResponse = await supervisor.GetAsync($"/api/audit-logs?entityType=Ticket&entityId={created.Data.Id}&action=TicketCreated");
 
         Assert.Equal(HttpStatusCode.OK, auditResponse.StatusCode);
-        var auditBody = await ReadResponseAsync<PagedAuditListResponse>(auditResponse);
+        var auditBody = await OpsSphereSqliteFactory.ReadResponseAsync<PagedAuditListResponse>(auditResponse);
         Assert.Single(auditBody.Data);
     }
 
     [Fact]
     public async Task AuditList_DoesNotExposeSensitiveDetailFields()
     {
-        await using var factory = await AuditApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
         await ArrangeAuditLogsAsync(factory);
-        var admin = await CreateAuthenticatedClientAsync(factory, AdminEmail);
+        var admin = await factory.CreateAuthenticatedClientAsync(AdminEmail);
 
         var json = await (await admin.GetAsync("/api/audit-logs")).Content.ReadAsStringAsync();
 
@@ -289,9 +282,9 @@ public sealed class AuditApiTests
     [Fact]
     public async Task AuditDetail_ExposesPreviousNewValueAndCorrelationIdSafely()
     {
-        await using var factory = await AuditApiFactory.CreateAsync();
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
         var ids = await ArrangeAuditLogsAsync(factory);
-        var admin = await CreateAuthenticatedClientAsync(factory, AdminEmail);
+        var admin = await factory.CreateAuthenticatedClientAsync(AdminEmail);
 
         var response = await admin.GetAsync($"/api/audit-logs/{ids.NovaBankTicketAuditId}");
 
@@ -304,7 +297,7 @@ public sealed class AuditApiTests
         Assert.DoesNotContain("userAgent", json, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static async Task<AuditArrangement> ArrangeAuditLogsAsync(AuditApiFactory factory)
+    private static async Task<AuditArrangement> ArrangeAuditLogsAsync(OpsSphereSqliteFactory factory)
     {
         var novaTicketId = await AddTicketDirectlyAsync(
             factory,
@@ -382,7 +375,7 @@ public sealed class AuditApiTests
     }
 
     private static async Task<Guid> AddTicketDirectlyAsync(
-        AuditApiFactory factory,
+        OpsSphereSqliteFactory factory,
         Guid accountId,
         Guid campaignId,
         Guid customerId,
@@ -442,7 +435,7 @@ public sealed class AuditApiTests
         return ticketId;
     }
 
-    private static async Task SetAuditCreatedAtAsync(AuditApiFactory factory, Guid auditId, DateTime createdAt)
+    private static async Task SetAuditCreatedAtAsync(OpsSphereSqliteFactory factory, Guid auditId, DateTime createdAt)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
@@ -451,105 +444,15 @@ public sealed class AuditApiTests
         await db.SaveChangesAsync();
     }
 
-    private static async Task<HttpClient> CreateAuthenticatedClientAsync(AuditApiFactory factory, string email)
-    {
-        var client = factory.CreateClient();
-        var loginResponse = await client.PostAsJsonAsync("/api/auth/login", new
-        {
-            email,
-            password = OpsSphereSeedData.LocalDemoPassword
-        });
-        loginResponse.EnsureSuccessStatusCode();
-        var loginBody = await ReadResponseAsync<ApiResponse<LoginData>>(loginResponse);
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", loginBody.Data.AccessToken);
-        return client;
-    }
-
-    private static async Task<T> ReadResponseAsync<T>(HttpResponseMessage response)
-    {
-        var json = await response.Content.ReadAsStringAsync();
-        var value = JsonSerializer.Deserialize<T>(json, JsonOptions);
-        return value ?? throw new InvalidOperationException($"Could not deserialize {typeof(T).Name} from {(int)response.StatusCode}: {json}");
-    }
-
-    private sealed record AuditArrangement(
+private sealed record AuditArrangement(
         Guid NovaBankTicketId,
         Guid StreamlyTicketId,
         Guid NovaBankTicketAuditId,
         Guid StreamlyTicketAuditId,
         Guid NovaBankCustomerAuditId,
         Guid UserAuditId);
-
-    private sealed record ApiResponse<T>(T Data);
     private sealed record PagedAuditListResponse(IReadOnlyList<AuditListItemResponse> Data, int Page, int PageSize, int TotalCount, int TotalPages);
     private sealed record AuditListItemResponse(Guid Id, Guid? ActorUserId, string? ActorDisplayName, string Action, string EntityType, Guid EntityId, DateTime CreatedAt, string? CorrelationId);
     private sealed record AuditDetailResponse(Guid Id, Guid? ActorUserId, string? ActorDisplayName, string Action, string EntityType, Guid EntityId, string? PreviousValue, string? NewValue, string? CorrelationId, DateTime CreatedAt);
-    private sealed record LoginData(string AccessToken);
     private sealed record CreateTicketResponse(Guid Id, string TicketNumber, string Status, string Priority, string SlaState, DateTime? SlaDueAt);
-
-    internal sealed class AuditApiFactory : WebApplicationFactory<Program>
-    {
-        public const string JwtSigningKey = "integration-testing-only-fictional-jwt-signing-key";
-
-        private readonly SqliteConnection connection = new("Data Source=:memory:");
-
-        public static async Task<AuditApiFactory> CreateAsync()
-        {
-            ConfigureEnvironment();
-            var factory = new AuditApiFactory();
-            await factory.connection.OpenAsync();
-            await factory.InitializeDatabaseAsync();
-            return factory;
-        }
-
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureAppConfiguration((_, config) =>
-            {
-                config.AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["ConnectionStrings:DefaultConnection"] = "Server=(local);Database=OpsSphereAuditTests;Trusted_Connection=True;TrustServerCertificate=True;",
-                    ["SeedData:Enabled"] = "false",
-                    ["Jwt:Issuer"] = "OpsSphere.Tests",
-                    ["Jwt:Audience"] = "OpsSphere.Tests.Angular",
-                    ["Jwt:ExpirationMinutes"] = "60",
-                    ["Jwt:SigningKey"] = JwtSigningKey
-                });
-            });
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<IDbContextOptionsConfiguration<OpsSphereDbContext>>();
-                services.RemoveAll<DbContextOptions<OpsSphereDbContext>>();
-                services.AddDbContext<OpsSphereDbContext>(options => options.UseSqlite(connection));
-            });
-        }
-
-        private static void ConfigureEnvironment()
-        {
-            Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", "Server=(local);Database=OpsSphereAuditTests;Trusted_Connection=True;TrustServerCertificate=True;");
-            Environment.SetEnvironmentVariable("SeedData__Enabled", "false");
-            Environment.SetEnvironmentVariable("Jwt__Issuer", "OpsSphere.Tests");
-            Environment.SetEnvironmentVariable("Jwt__Audience", "OpsSphere.Tests.Angular");
-            Environment.SetEnvironmentVariable("Jwt__ExpirationMinutes", "60");
-            Environment.SetEnvironmentVariable("Jwt__SigningKey", JwtSigningKey);
-        }
-
-        public override async ValueTask DisposeAsync()
-        {
-            await connection.DisposeAsync();
-            await base.DisposeAsync();
-        }
-
-        private async Task InitializeDatabaseAsync()
-        {
-            using var scope = Services.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
-            await dbContext.Database.EnsureDeletedAsync();
-            await dbContext.Database.EnsureCreatedAsync();
-
-            var seeder = scope.ServiceProvider.GetRequiredService<OpsSphereDataSeeder>();
-            await seeder.SeedAsync();
-        }
-    }
 }

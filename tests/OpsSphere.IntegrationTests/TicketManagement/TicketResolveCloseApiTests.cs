@@ -1,20 +1,13 @@
-using System.Net;
-using System.Net.Http.Headers;
+﻿using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using OpsSphere.Domain.Entities;
 using OpsSphere.Domain.Enums;
 using OpsSphere.Infrastructure.Persistence;
 using OpsSphere.Infrastructure.Persistence.SeedData;
+using OpsSphere.IntegrationTests.TestInfrastructure;
 
 namespace OpsSphere.IntegrationTests.TicketManagement;
 
@@ -35,14 +28,14 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Supervisor_CanResolve_OpenTicket_Returns200()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Supervisor resolves open");
 
         var response = await ResolveAsync(supervisor, ticket.Id, "Issue confirmed and resolved.", null);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var result = await ReadDataAsync<ResolveTicketResponse>(response);
+        var result = await OpsSphereSqliteFactory.ReadDataAsync<ResolveTicketResponse>(response);
         Assert.Equal(ticket.Id, result.TicketId);
         Assert.Equal(ticket.TicketNumber, result.TicketNumber);
         Assert.Equal("Open", result.PreviousStatus);
@@ -55,23 +48,23 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Agent_CanResolve_WithinScope_Returns200()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "Agent resolves ticket");
 
         var response = await ResolveAsync(agent, ticket.Id, "Agent resolution summary.", null);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var result = await ReadDataAsync<ResolveTicketResponse>(response);
+        var result = await OpsSphereSqliteFactory.ReadDataAsync<ResolveTicketResponse>(response);
         Assert.Equal("Resolved", result.NewStatus);
     }
 
     [Fact]
     public async Task OperationsManager_CannotResolve_Returns403()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
-        var manager = await CreateAuthenticatedClientAsync(factory, ManagerEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
+        var manager = await factory.CreateAuthenticatedClientAsync(ManagerEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Manager resolves ticket");
 
         var response = await ResolveAsync(manager, ticket.Id, "Manager resolution summary.", null);
@@ -82,9 +75,9 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Admin_CannotResolve_Returns403()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
-        var admin = await CreateAuthenticatedClientAsync(factory, AdminEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
+        var admin = await factory.CreateAuthenticatedClientAsync(AdminEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Admin resolve forbidden");
 
         var response = await ResolveAsync(admin, ticket.Id, "Admin resolution.", null);
@@ -95,9 +88,9 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Viewer_CannotResolve_Returns403()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
-        var viewer = await CreateAuthenticatedClientAsync(factory, ViewerEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
+        var viewer = await factory.CreateAuthenticatedClientAsync(ViewerEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Viewer resolve forbidden");
 
         var response = await ResolveAsync(viewer, ticket.Id, "Viewer resolution.", null);
@@ -108,8 +101,8 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Unauthenticated_CannotResolve_Returns401()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Unauthenticated resolve forbidden");
         var anonymous = factory.CreateClient();
 
@@ -125,14 +118,14 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Resolve_EmptySummary_Returns400_ValidationError()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "Empty resolution summary");
 
         var response = await ResolveAsync(agent, ticket.Id, string.Empty, null);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await ReadErrorAsync(response);
+        var error = await OpsSphereSqliteFactory.ReadErrorAsync(response);
         Assert.Equal("validation_error", error.Error.Code);
         Assert.Contains(error.Error.Details ?? [], d => d.Field == "resolutionSummary");
     }
@@ -140,14 +133,14 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Resolve_NullSummary_Returns400_ValidationError()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "Null resolution summary");
 
         var response = await ResolveAsync(agent, ticket.Id, null, null);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await ReadErrorAsync(response);
+        var error = await OpsSphereSqliteFactory.ReadErrorAsync(response);
         Assert.Equal("validation_error", error.Error.Code);
         Assert.Contains(error.Error.Details ?? [], d => d.Field == "resolutionSummary");
     }
@@ -155,14 +148,14 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Resolve_TooLongSummary_Returns400_ValidationError()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "Too long resolution summary");
 
         var response = await ResolveAsync(agent, ticket.Id, new string('a', 2001), null);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await ReadErrorAsync(response);
+        var error = await OpsSphereSqliteFactory.ReadErrorAsync(response);
         Assert.Equal("validation_error", error.Error.Code);
         Assert.Contains(error.Error.Details ?? [], d => d.Field == "resolutionSummary");
     }
@@ -170,14 +163,14 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Resolve_TooLongResolutionCode_Returns400_ValidationError()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "Too long resolution code");
 
         var response = await ResolveAsync(agent, ticket.Id, "Valid summary.", new string('x', 101));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await ReadErrorAsync(response);
+        var error = await OpsSphereSqliteFactory.ReadErrorAsync(response);
         Assert.Equal("validation_error", error.Error.Code);
         Assert.Contains(error.Error.Details ?? [], d => d.Field == "resolutionCode");
     }
@@ -185,8 +178,8 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Resolve_CrossScope_Returns404()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var outOfScopeTicketId = await AddTicketDirectlyAsync(factory, SeedIds.Accounts.Streamly, SeedIds.Campaigns.StreamlyCreator, SeedIds.Customers.StreamlyCustomer1, TicketStatus.Open, "Cross-scope resolve");
 
         var response = await ResolveAsync(supervisor, outOfScopeTicketId, "Cross scope summary.", null);
@@ -201,15 +194,15 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Resolve_AlreadyResolved_Returns400_BusinessRuleViolation()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "Already resolved rejection");
         await AddResolutionDirectlyAsync(factory, ticket.Id, SeedIds.Users.AgentNovabank, "First resolution", "WithinSla");
 
         var response = await ResolveAsync(agent, ticket.Id, "Second resolution attempt.", null);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await ReadErrorAsync(response);
+        var error = await OpsSphereSqliteFactory.ReadErrorAsync(response);
         Assert.Equal("business_rule_violation", error.Error.Code);
         Assert.Contains("already resolved", error.Error.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -217,23 +210,23 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Resolve_ClosedTicket_Returns400_BusinessRuleViolation()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "Closed ticket resolve rejection");
         await SetTicketStatusAsync(factory, ticket.Id, TicketStatus.Closed);
 
         var response = await ResolveAsync(agent, ticket.Id, "Closed ticket summary.", null);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await ReadErrorAsync(response);
+        var error = await OpsSphereSqliteFactory.ReadErrorAsync(response);
         Assert.Equal("business_rule_violation", error.Error.Code);
     }
 
     [Fact]
     public async Task Resolve_EscalatedTicket_DeactivatesEscalation_And_ClearsIsEscalated()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Escalated then resolved");
         await AddEscalationDirectlyAsync(factory, ticket.Id, SeedIds.Users.SupervisorNovabank, "Needs resolution");
 
@@ -257,14 +250,14 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Resolve_PersistsResolutionRecord()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "Resolution persistence check");
 
         var response = await ResolveAsync(agent, ticket.Id, "Customer issue confirmed resolved.", "RC-001");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var result = await ReadDataAsync<ResolveTicketResponse>(response);
+        var result = await OpsSphereSqliteFactory.ReadDataAsync<ResolveTicketResponse>(response);
 
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
@@ -279,8 +272,8 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Resolve_SetsTicketStatusToResolved_And_ResolvedAt()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "Ticket status resolved persistence");
         var before = DateTime.UtcNow;
 
@@ -298,8 +291,8 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Resolve_SetsSlaStateToCompleted()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "SLA state Completed on resolve");
 
         var response = await ResolveAsync(agent, ticket.Id, "SLA state check.", null);
@@ -320,15 +313,15 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Resolve_PreservesOriginalSlaStateAsFinalState()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "FinalSlaState preservation");
         await SetTicketSlaStateAsync(factory, ticket.Id, SlaState.Breached);
 
         var response = await ResolveAsync(agent, ticket.Id, "Breached SLA, still resolved.", null);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var result = await ReadDataAsync<ResolveTicketResponse>(response);
+        var result = await OpsSphereSqliteFactory.ReadDataAsync<ResolveTicketResponse>(response);
         Assert.Equal("Breached", result.FinalSlaState);
 
         using var scope = factory.Services.CreateScope();
@@ -345,8 +338,8 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Resolve_CreatesStatusHistoryEntry()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "Resolve status history");
 
         var response = await ResolveAsync(agent, ticket.Id, "Status history resolve check.", null);
@@ -364,8 +357,8 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Resolve_CreatesAuditLog_TicketResolved()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "Resolve audit action");
 
         var response = await ResolveAsync(agent, ticket.Id, "Audit resolve check.", null);
@@ -382,8 +375,8 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Resolve_AuditLog_DoesNotContainResolutionSummaryOrPii()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         const string sensitiveSubject = "ResolveSensitiveSubject-ABC123";
         const string sensitiveDescription = "ResolveSensitiveDescription-XYZ987";
         const string sensitiveSummary = "ResolveSensitiveSummary-SECRET456";
@@ -411,8 +404,8 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Resolve_AuditLog_PropertyShape_IsExpected()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "Resolve audit shape");
 
         var response = await ResolveAsync(agent, ticket.Id, "Audit shape check.", "SHAPE-01");
@@ -438,8 +431,8 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Resolve_WithOptionalCode_PersistsCode()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "Resolve with optional code");
 
         var response = await ResolveAsync(agent, ticket.Id, "Resolution with code.", "RESOLVED-001");
@@ -455,8 +448,8 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Resolve_WithoutCode_PersistsNullCode()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "Resolve without code");
 
         var response = await ResolveAsync(agent, ticket.Id, "Resolution without code.", null);
@@ -476,15 +469,15 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Supervisor_CanClose_ResolvedTicket_Returns200()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Supervisor closes resolved");
         await AddResolutionDirectlyAsync(factory, ticket.Id, SeedIds.Users.SupervisorNovabank, "Pre-resolved for close", "WithinSla");
 
         var response = await CloseAsync(supervisor, ticket.Id);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var result = await ReadDataAsync<CloseTicketResponse>(response);
+        var result = await OpsSphereSqliteFactory.ReadDataAsync<CloseTicketResponse>(response);
         Assert.Equal(ticket.Id, result.TicketId);
         Assert.Equal("Resolved", result.PreviousStatus);
         Assert.Equal("Closed", result.NewStatus);
@@ -494,8 +487,8 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Agent_CanClose_ResolvedTicket_Returns200()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "Agent closes resolved");
         await AddResolutionDirectlyAsync(factory, ticket.Id, SeedIds.Users.AgentNovabank, "Agent pre-resolved", "WithinSla");
 
@@ -507,9 +500,9 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Admin_CannotClose_Returns403()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
-        var admin = await CreateAuthenticatedClientAsync(factory, AdminEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
+        var admin = await factory.CreateAuthenticatedClientAsync(AdminEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Admin close forbidden");
         await AddResolutionDirectlyAsync(factory, ticket.Id, SeedIds.Users.SupervisorNovabank, "Admin close forbidden resolution", "WithinSla");
 
@@ -521,9 +514,9 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Viewer_CannotClose_Returns403()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
-        var viewer = await CreateAuthenticatedClientAsync(factory, ViewerEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
+        var viewer = await factory.CreateAuthenticatedClientAsync(ViewerEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Viewer close forbidden");
         await AddResolutionDirectlyAsync(factory, ticket.Id, SeedIds.Users.SupervisorNovabank, "Viewer close forbidden resolution", "WithinSla");
 
@@ -535,8 +528,8 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Unauthenticated_CannotClose_Returns401()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Unauthenticated close forbidden");
         await AddResolutionDirectlyAsync(factory, ticket.Id, SeedIds.Users.SupervisorNovabank, "Unauthenticated resolution", "WithinSla");
         var anonymous = factory.CreateClient();
@@ -553,14 +546,14 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Close_OpenTicket_Returns400_BusinessRuleViolation()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "Close open ticket rejection");
 
         var response = await CloseAsync(agent, ticket.Id);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await ReadErrorAsync(response);
+        var error = await OpsSphereSqliteFactory.ReadErrorAsync(response);
         Assert.Equal("business_rule_violation", error.Error.Code);
         Assert.Contains("resolved", error.Error.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -568,38 +561,38 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Close_InProgressTicket_Returns400_BusinessRuleViolation()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "Close in-progress rejection");
         await SetTicketStatusAsync(factory, ticket.Id, TicketStatus.InProgress);
 
         var response = await CloseAsync(agent, ticket.Id);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await ReadErrorAsync(response);
+        var error = await OpsSphereSqliteFactory.ReadErrorAsync(response);
         Assert.Equal("business_rule_violation", error.Error.Code);
     }
 
     [Fact]
     public async Task Close_EscalatedTicket_Returns400_BusinessRuleViolation()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Close escalated rejection");
         await AddEscalationDirectlyAsync(factory, ticket.Id, SeedIds.Users.SupervisorNovabank, "Escalated ticket close rejection");
 
         var response = await CloseAsync(supervisor, ticket.Id);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await ReadErrorAsync(response);
+        var error = await OpsSphereSqliteFactory.ReadErrorAsync(response);
         Assert.Equal("business_rule_violation", error.Error.Code);
     }
 
     [Fact]
     public async Task Close_CrossScope_Returns404()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var outOfScopeTicketId = await AddTicketDirectlyAsync(factory, SeedIds.Accounts.Streamly, SeedIds.Campaigns.StreamlyCreator, SeedIds.Customers.StreamlyCustomer1, TicketStatus.Resolved, "Cross-scope close");
 
         var response = await CloseAsync(supervisor, outOfScopeTicketId);
@@ -614,8 +607,8 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Close_SetsTicketStatusToClosed_And_ClosedAt()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "Closed persistence check");
         await AddResolutionDirectlyAsync(factory, ticket.Id, SeedIds.Users.AgentNovabank, "Pre-resolved", "WithinSla");
         var before = DateTime.UtcNow;
@@ -634,8 +627,8 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Close_CreatesStatusHistoryEntry()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "Close status history");
         await AddResolutionDirectlyAsync(factory, ticket.Id, SeedIds.Users.AgentNovabank, "Pre-resolved for history", "WithinSla");
 
@@ -654,8 +647,8 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Close_CreatesAuditLog_TicketClosed()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "Close audit action");
         await AddResolutionDirectlyAsync(factory, ticket.Id, SeedIds.Users.AgentNovabank, "Pre-resolved for audit", "WithinSla");
 
@@ -673,8 +666,8 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Close_AuditLog_PropertyShape_IsExpected()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "Close audit shape");
         await AddResolutionDirectlyAsync(factory, ticket.Id, SeedIds.Users.AgentNovabank, "Pre-resolved for shape", "WithinSla");
 
@@ -702,8 +695,8 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Close_DoesNotModifyResolutionRecord()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "Close does not modify resolution");
         await AddResolutionDirectlyAsync(factory, ticket.Id, SeedIds.Users.AgentNovabank, "Resolution before close", "WithinSla");
 
@@ -730,22 +723,22 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task GetHistory_Agent_WithinScope_Returns200_WithEntries()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "History entries check");
 
         var response = await GetHistoryAsync(agent, ticket.Id);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var history = await ReadDataAsync<IReadOnlyList<TicketStatusHistoryItemDto>>(response);
+        var history = await OpsSphereSqliteFactory.ReadDataAsync<IReadOnlyList<TicketStatusHistoryItemDto>>(response);
         Assert.NotEmpty(history);
     }
 
     [Fact]
     public async Task GetHistory_CrossScope_Returns404()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var outOfScopeTicketId = await AddTicketDirectlyAsync(factory, SeedIds.Accounts.Streamly, SeedIds.Campaigns.StreamlyCreator, SeedIds.Customers.StreamlyCustomer1, TicketStatus.Open, "Cross-scope history");
 
         var response = await GetHistoryAsync(supervisor, outOfScopeTicketId);
@@ -756,9 +749,9 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task GetHistory_Admin_Returns200()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
-        var admin = await CreateAuthenticatedClientAsync(factory, AdminEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
+        var admin = await factory.CreateAuthenticatedClientAsync(AdminEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Admin history forbidden");
 
         var response = await GetHistoryAsync(admin, ticket.Id);
@@ -769,8 +762,8 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task GetHistory_ReturnsEntriesInChronologicalOrder()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "History chronological order");
 
         await ResolveAsync(agent, ticket.Id, "Resolved for history order.", null);
@@ -778,7 +771,7 @@ public sealed class TicketResolveCloseApiTests
         var response = await GetHistoryAsync(agent, ticket.Id);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var history = await ReadDataAsync<IReadOnlyList<TicketStatusHistoryItemDto>>(response);
+        var history = await OpsSphereSqliteFactory.ReadDataAsync<IReadOnlyList<TicketStatusHistoryItemDto>>(response);
         Assert.True(history.Count >= 2);
         for (var i = 1; i < history.Count; i++)
         {
@@ -791,8 +784,8 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task GetHistory_ReflectsResolveAndClose()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "History full lifecycle");
 
         await ResolveAsync(agent, ticket.Id, "Full lifecycle resolved.", null);
@@ -801,7 +794,7 @@ public sealed class TicketResolveCloseApiTests
         var response = await GetHistoryAsync(agent, ticket.Id);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var history = await ReadDataAsync<IReadOnlyList<TicketStatusHistoryItemDto>>(response);
+        var history = await OpsSphereSqliteFactory.ReadDataAsync<IReadOnlyList<TicketStatusHistoryItemDto>>(response);
         Assert.Contains(history, h => h.NewStatus == "Resolved");
         Assert.Contains(history, h => h.NewStatus == "Closed");
     }
@@ -809,8 +802,8 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task Unauthenticated_CannotGetHistory_Returns401()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var supervisor = await CreateAuthenticatedClientAsync(factory, SupervisorEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var supervisor = await factory.CreateAuthenticatedClientAsync(SupervisorEmail);
         var ticket = await CreateNovaBankTicketAsync(supervisor, "Unauthenticated history");
         var anonymous = factory.CreateClient();
 
@@ -826,18 +819,18 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task FullLifecycle_OpenToResolvedToClosed_PersistsAll()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "Full lifecycle open to closed");
 
         var resolveResponse = await ResolveAsync(agent, ticket.Id, "Customer issue resolved.", "RC-FULL");
         Assert.Equal(HttpStatusCode.OK, resolveResponse.StatusCode);
-        var resolveResult = await ReadDataAsync<ResolveTicketResponse>(resolveResponse);
+        var resolveResult = await OpsSphereSqliteFactory.ReadDataAsync<ResolveTicketResponse>(resolveResponse);
         Assert.Equal("Resolved", resolveResult.NewStatus);
 
         var closeResponse = await CloseAsync(agent, ticket.Id);
         Assert.Equal(HttpStatusCode.OK, closeResponse.StatusCode);
-        var closeResult = await ReadDataAsync<CloseTicketResponse>(closeResponse);
+        var closeResult = await OpsSphereSqliteFactory.ReadDataAsync<CloseTicketResponse>(closeResponse);
         Assert.Equal("Closed", closeResult.NewStatus);
 
         using var scope = factory.Services.CreateScope();
@@ -856,8 +849,8 @@ public sealed class TicketResolveCloseApiTests
     [Fact]
     public async Task ClosedTicket_CannotBeResolved_Returns400()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "Closed cannot be re-resolved");
         await AddResolutionDirectlyAsync(factory, ticket.Id, SeedIds.Users.AgentNovabank, "Already resolved", "WithinSla");
         await CloseAsync(agent, ticket.Id);
@@ -865,15 +858,15 @@ public sealed class TicketResolveCloseApiTests
         var response = await ResolveAsync(agent, ticket.Id, "Try resolve closed.", null);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await ReadErrorAsync(response);
+        var error = await OpsSphereSqliteFactory.ReadErrorAsync(response);
         Assert.Equal("business_rule_violation", error.Error.Code);
     }
 
     [Fact]
     public async Task ClosedTicket_CannotBeClosed_Returns400()
     {
-        await using var factory = await TicketResolveCloseApiFactory.CreateAsync();
-        var agent = await CreateAuthenticatedClientAsync(factory, AgentEmail);
+        await using var factory = await OpsSphereSqliteFactory.CreateAsync();
+        var agent = await factory.CreateAuthenticatedClientAsync(AgentEmail);
         var ticket = await CreateNovaBankTicketAsync(agent, "Closed cannot be re-closed");
         await AddResolutionDirectlyAsync(factory, ticket.Id, SeedIds.Users.AgentNovabank, "Already resolved", "WithinSla");
         await CloseAsync(agent, ticket.Id);
@@ -881,7 +874,7 @@ public sealed class TicketResolveCloseApiTests
         var response = await CloseAsync(agent, ticket.Id);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await ReadErrorAsync(response);
+        var error = await OpsSphereSqliteFactory.ReadErrorAsync(response);
         Assert.Equal("business_rule_violation", error.Error.Code);
     }
 
@@ -935,11 +928,11 @@ public sealed class TicketResolveCloseApiTests
             customerId, accountId, campaignId, category, priority, subject, description
         });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        return await ReadDataAsync<CreateTicketResult>(response);
+        return await OpsSphereSqliteFactory.ReadDataAsync<CreateTicketResult>(response);
     }
 
     private static async Task<Guid> AddTicketDirectlyAsync(
-        TicketResolveCloseApiFactory factory,
+        OpsSphereSqliteFactory factory,
         Guid accountId,
         Guid campaignId,
         Guid customerId,
@@ -1001,7 +994,7 @@ public sealed class TicketResolveCloseApiTests
     }
 
     private static async Task AddResolutionDirectlyAsync(
-        TicketResolveCloseApiFactory factory,
+        OpsSphereSqliteFactory factory,
         Guid ticketId,
         Guid resolvedByUserId,
         string summary,
@@ -1039,7 +1032,7 @@ public sealed class TicketResolveCloseApiTests
         await db.SaveChangesAsync();
     }
 
-    private static async Task SetTicketStatusAsync(TicketResolveCloseApiFactory factory, Guid ticketId, TicketStatus status)
+    private static async Task SetTicketStatusAsync(OpsSphereSqliteFactory factory, Guid ticketId, TicketStatus status)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
@@ -1049,7 +1042,7 @@ public sealed class TicketResolveCloseApiTests
         await db.SaveChangesAsync();
     }
 
-    private static async Task SetTicketSlaStateAsync(TicketResolveCloseApiFactory factory, Guid ticketId, SlaState slaState, DateTime? dueAt = null)
+    private static async Task SetTicketSlaStateAsync(OpsSphereSqliteFactory factory, Guid ticketId, SlaState slaState, DateTime? dueAt = null)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
@@ -1067,7 +1060,7 @@ public sealed class TicketResolveCloseApiTests
     }
 
     private static async Task AddEscalationDirectlyAsync(
-        TicketResolveCloseApiFactory factory,
+        OpsSphereSqliteFactory factory,
         Guid ticketId,
         Guid escalatedByUserId,
         string reason)
@@ -1099,45 +1092,9 @@ public sealed class TicketResolveCloseApiTests
     // Read helpers
     // -------------------------------------------------------------------------
 
-    private static async Task<T> ReadDataAsync<T>(HttpResponseMessage response)
-    {
-        var envelope = await ReadResponseAsync<ApiResponse<T>>(response);
-        return envelope.Data;
-    }
-
-    private static async Task<ApiErrorResponse> ReadErrorAsync(HttpResponseMessage response) =>
-        await ReadResponseAsync<ApiErrorResponse>(response);
-
-    private static async Task<T> ReadResponseAsync<T>(HttpResponseMessage response)
-    {
-        var json = await response.Content.ReadAsStringAsync();
-        var value = JsonSerializer.Deserialize<T>(json, JsonOptions);
-        return value ?? throw new InvalidOperationException($"Could not deserialize {typeof(T).Name} from {(int)response.StatusCode}: {json}");
-    }
-
-    private static async Task<HttpClient> CreateAuthenticatedClientAsync(TicketResolveCloseApiFactory factory, string email)
-    {
-        var client = factory.CreateClient();
-        var loginResponse = await client.PostAsJsonAsync("/api/auth/login", new
-        {
-            email,
-            password = OpsSphereSeedData.LocalDemoPassword
-        });
-        loginResponse.EnsureSuccessStatusCode();
-        var loginBody = await ReadResponseAsync<ApiResponse<LoginData>>(loginResponse);
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", loginBody.Data.AccessToken);
-        return client;
-    }
-
     // -------------------------------------------------------------------------
     // Response DTOs (test-local)
     // -------------------------------------------------------------------------
-
-    private sealed record ApiResponse<T>(T Data);
-    private sealed record ApiErrorResponse(ApiError Error);
-    private sealed record ApiError(string Code, string Message, IReadOnlyList<ApiErrorDetail>? Details, string? CorrelationId);
-    private sealed record ApiErrorDetail(string? Field, string Message);
-    private sealed record LoginData(string AccessToken);
 
     private sealed record CreateTicketResult(
         Guid Id,
@@ -1177,70 +1134,4 @@ public sealed class TicketResolveCloseApiTests
     // -------------------------------------------------------------------------
     // Factory
     // -------------------------------------------------------------------------
-
-    internal sealed class TicketResolveCloseApiFactory : WebApplicationFactory<Program>
-    {
-        public const string JwtSigningKey = "integration-testing-only-fictional-jwt-signing-key";
-
-        private readonly SqliteConnection connection = new("Data Source=:memory:");
-
-        public static async Task<TicketResolveCloseApiFactory> CreateAsync()
-        {
-            ConfigureEnvironment();
-            var factory = new TicketResolveCloseApiFactory();
-            await factory.connection.OpenAsync();
-            await factory.InitializeDatabaseAsync();
-            return factory;
-        }
-
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureAppConfiguration((_, config) =>
-            {
-                config.AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["ConnectionStrings:DefaultConnection"] = "Server=(local);Database=OpsSphereResolveCloseTests;Trusted_Connection=True;TrustServerCertificate=True;",
-                    ["SeedData:Enabled"] = "false",
-                    ["Jwt:Issuer"] = "OpsSphere.Tests",
-                    ["Jwt:Audience"] = "OpsSphere.Tests.Angular",
-                    ["Jwt:ExpirationMinutes"] = "60",
-                    ["Jwt:SigningKey"] = JwtSigningKey
-                });
-            });
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<IDbContextOptionsConfiguration<OpsSphereDbContext>>();
-                services.RemoveAll<DbContextOptions<OpsSphereDbContext>>();
-                services.AddDbContext<OpsSphereDbContext>(options => options.UseSqlite(connection));
-            });
-        }
-
-        private static void ConfigureEnvironment()
-        {
-            Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", "Server=(local);Database=OpsSphereResolveCloseTests;Trusted_Connection=True;TrustServerCertificate=True;");
-            Environment.SetEnvironmentVariable("SeedData__Enabled", "false");
-            Environment.SetEnvironmentVariable("Jwt__Issuer", "OpsSphere.Tests");
-            Environment.SetEnvironmentVariable("Jwt__Audience", "OpsSphere.Tests.Angular");
-            Environment.SetEnvironmentVariable("Jwt__ExpirationMinutes", "60");
-            Environment.SetEnvironmentVariable("Jwt__SigningKey", JwtSigningKey);
-        }
-
-        public override async ValueTask DisposeAsync()
-        {
-            await connection.DisposeAsync();
-            await base.DisposeAsync();
-        }
-
-        private async Task InitializeDatabaseAsync()
-        {
-            using var scope = Services.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<OpsSphereDbContext>();
-            await dbContext.Database.EnsureDeletedAsync();
-            await dbContext.Database.EnsureCreatedAsync();
-
-            var seeder = scope.ServiceProvider.GetRequiredService<OpsSphereDataSeeder>();
-            await seeder.SeedAsync();
-        }
-    }
 }
