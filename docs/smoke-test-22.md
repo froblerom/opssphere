@@ -1,6 +1,6 @@
 # Sprint 22 Manual Smoke Test - Angular MVP Workflow Integration
 
-> **Note:** Automated browser-level E2E tests (Playwright) are deferred to Sprint 24. The API and integration layer are covered by the automated integration tests in `tests/OpsSphere.IntegrationTests`. This document remains the authoritative manual smoke checklist for Sprint 22 UI workflows.
+> **Note:** Automated browser-level E2E tests are deferred to a future sprint. For MVP validation, this manual smoke checklist remains the authoritative E2E smoke reference. The API and integration layer are covered by the automated integration tests in `tests/OpsSphere.IntegrationTests`.
 
 ## Prerequisites
 - [ ] Backend API is running locally.
