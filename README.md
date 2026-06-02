@@ -1,210 +1,256 @@
-# opssphere
-Enterprise Support Operations Platform built with .NET 10, Angular, SQL Server, Clean Architecture, CQRS, JWT authentication, role-based authorization, audit logging, Docker and CI/CD.
+# OpsSphere
 
-## Backend Local Validation
+> Enterprise Support Operations Platform — .NET 10 · Angular · SQL Server · Clean Architecture · CQRS · JWT · RBAC+Scope · Audit Logging · Docker · GitHub Actions CI
 
-The backend solution uses `OpsSphere.slnx` and targets .NET 10.
+OpsSphere simulates a multinational BPO/contact center operation where admins, managers, supervisors, agents, and viewers manage tickets, SLA state, escalations, dashboards, and audit history across a structured regional hierarchy.
 
-```bash
-dotnet restore OpsSphere.slnx
-dotnet build OpsSphere.slnx
-dotnet test OpsSphere.slnx
-```
+**This is a senior-level portfolio project** built from business discovery through production-ready architecture — not a tutorial app. It demonstrates the kind of judgment, design, and implementation expected in enterprise .NET roles.
 
-## Frontend Local Validation
+---
 
-The Angular frontend lives under `frontend/`, uses Angular Material for the MVP UI foundation, and follows the `/api` base URL convention for business API calls.
+## Demo Preview
 
-```bash
-cd frontend
-npm install
-npm run build
-npm run test
-npm start
-```
+<!-- PLACEHOLDER: demo GIF or screenshot carousel -->
+> _Screenshots and demo recording coming soon._
 
-## Local Infrastructure (Docker Compose)
+### Demo Users (fictional seed data)
 
-### Requirements
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) or Docker Engine with Compose plugin installed.
+| Role | Email | Scope |
+|---|---|---|
+| Admin | `admin@opssphere.local` | All data |
+| Operations Manager | `manager.latam@opssphere.local` | LATAM region |
+| Supervisor | `supervisor.novabank@opssphere.local` | NOVABANK account |
+| Agent | `agent.novabank@opssphere.local` | NOVABANK-CC campaign |
+| Viewer | `viewer.latam@opssphere.local` | LATAM region (read-only) |
 
-### Setup
-1. Copy the example environment file and set your local password:
-   ```bash
-   cp .env.example .env
-   ```
-   Edit `.env` and replace the placeholder password in `MSSQL_SA_PASSWORD`.
+Password for all demo users: `OpsSphere123!` — hashed before persistence, for local demo only.
 
-2. Validate the Compose configuration:
-   ```bash
-   docker compose config
-   ```
+---
 
-3. Start SQL Server:
-   ```bash
-   docker compose up -d
-   ```
+## What This Project Demonstrates
 
-4. Check container status:
-   ```bash
-   docker compose ps
-   ```
+This project covers the full development lifecycle: from business requirements to a working, testable, documented application.
 
-### Local Connection String
-Use the following connection string in `appsettings.Development.json` or .NET user secrets (replace the password):
-```
-Server=localhost,1433;Database=OpsSphereDb;User Id=sa;Password=<YOUR_LOCAL_SA_PASSWORD>;TrustServerCertificate=True;
-```
-
-> **Note:** Connection strings and passwords must not be committed to source control. Use `appsettings.Development.json` (gitignored locally), environment variables, or .NET user secrets for local development.
-
-### Common Commands
-| Command | Description |
+| Area | Skills Demonstrated |
 |---|---|
-| `docker compose up -d` | Start SQL Server in background |
-| `docker compose ps` | Check container status |
-| `docker compose down` | Stop containers (data preserved) |
-| `docker compose down -v` | Stop and delete local database volume |
+| **Backend** | .NET 10, ASP.NET Core Web API, Clean Architecture, CQRS/MediatR |
+| **Database** | SQL Server, EF Core 9, Fluent API configuration, migrations |
+| **Security** | JWT authentication, role-based + scope-based authorization |
+| **Domain Design** | 20 domain entities, business rule enforcement, ticket lifecycle |
+| **Audit & Traceability** | Structured audit logging as a first-class architecture concern |
+| **Frontend** | Angular, TypeScript, RxJS, Angular Material, role-aware route guards |
+| **Testing** | xUnit, integration tests, WebApplicationFactory, automated layer boundary enforcement |
+| **DevOps** | Docker Compose, GitHub Actions CI, environment-based configuration |
+| **Architecture Docs** | ADRs, C4 diagrams, domain model, ERD, process flows |
+| **Business Analysis** | Requirements spec, stakeholder mapping, business rules, use cases |
 
-> **Note:** This Docker Compose configuration is for local development only — not for production or CI.
+---
 
-## EF Core Migrations
+## Implemented Features
+
+### Identity & Access
+- JWT authentication with configurable signing key and expiry
+- 5 roles: Admin, OperationsManager, Supervisor, Agent, Viewer
+- Scope-based access: users only see data within their assigned region, account, or campaign
+- Granular permissions: `tickets.create`, `tickets.assign`, `audit.view`, etc.
+
+### Operational Structure
+- Multi-level org hierarchy: Region → Country → Account → Campaign
+- Supervisor and agent assignment management
+- Soft-delete (deactivation) for org entities — no physical deletes
+
+### Ticket Management
+- Full lifecycle: Open → InProgress → OnHold → Escalated → Resolved → Closed
+- Ticket assignment and reassignment with scope enforcement
+- Internal comments (agents and supervisors only)
+- Priority levels linked to SLA policies
+- Escalation workflow with required reason field
+
+### SLA Tracking
+- 4 SLA states: WithinSla · AtRisk · Breached · Completed
+- Per-priority SLA time windows
+- SLA state calculated from ticket creation timestamp
+
+### Audit Logging
+- Every critical action writes an audit record: ticket created, assigned, escalated, resolved, status changed, user modified, scope changed
+- Records include actor, timestamp, entity type, entity ID, action, previous value, new value
+
+### Dashboards
+- Role- and scope-filtered operational metrics
+- Open tickets, overdue tickets, by priority, by campaign
+
+### Infrastructure
+- GitHub Actions CI: restore → build → test on every push and PR
+- Docker Compose for local SQL Server (no local SQL Server install required)
+- EF Core migrations with design-time factory
+- Fictional deterministic seed data for repeatable demos and tests
+- Serilog structured logging with CorrelationId and UserId enrichment
+
+---
+
+## Architecture
+
+Presentation  (API controllers / Angular SPA)
+↓
+Application   (CQRS Commands + Queries, MediatR handlers, FluentValidation)
+↓
+Domain        (Entities, business rules, invariants — zero framework dependencies)
+↑
+Infrastructure (EF Core, SQL Server, JWT, Serilog — implements Application interfaces)
+
+
+
+**Layer boundaries are enforced by automated tests.** The build fails if Domain or Application accidentally imports EF Core or Infrastructure. This is not a convention — it is a compile-time guarantee.
+
+<!-- PLACEHOLDER: C4 System Context diagram (docs/diagrams/architecture/c4-system-context.png) -->
+<!-- PLACEHOLDER: C4 Container diagram (docs/diagrams/architecture/c4-container.png) -->
+
+### Key Architecture Decisions
+
+| ADR | Decision |
+|---|---|
+| [ADR-001](docs/decisions/ADR-001-clean-architecture.md) | Clean Architecture — domain-centered, dependency inversion |
+| [ADR-003](docs/decisions/ADR-003-jwt-authentication.md) | JWT authentication — stateless, standard, testable |
+| ADR-006 | CQRS with MediatR — explicit use cases, explicit separation of reads and writes |
+| ADR-008 | Audit logging as a core requirement, not an afterthought |
+
+Full ADRs in [docs/decisions/](docs/decisions/).
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Backend | .NET 10, ASP.NET Core Web API |
+| Architecture | Clean Architecture, CQRS, MediatR, FluentValidation |
+| Database | SQL Server 2022, Entity Framework Core 9 |
+| Frontend | Angular, TypeScript, RxJS, Angular Material |
+| Auth | JWT Bearer tokens, RBAC + scope-based authorization |
+| Logging | Serilog — structured, enriched, console and file sinks |
+| Testing | xUnit, WebApplicationFactory, integration tests |
+| Local Infra | Docker Compose (SQL Server container) |
+| CI/CD | GitHub Actions |
+| Cloud Target | Azure App Service, Azure SQL, Azure Key Vault (designed for, not yet deployed) |
+
+---
+
+## Local Setup
 
 ### Prerequisites
-- SQL Server running locally (via Docker Compose above)
-- Set your local password in `.env` (copy from `.env.example`)
-- Update `appsettings.Development.json` with your local password (do not commit)
 
-### Manage Migrations
+- .NET 10 SDK
+- Node.js 20+
+- Docker Desktop (or Docker Engine with Compose plugin)
 
-**List migrations:**
-```bash
-dotnet ef migrations list --project src/OpsSphere.Infrastructure --startup-project src/OpsSphere.Api
-```
-
-**Apply migration to local database:**
-```bash
-dotnet ef database update --project src/OpsSphere.Infrastructure --startup-project src/OpsSphere.Api
-```
-
-**Add a new migration (development only):**
-```bash
-dotnet ef migrations add <MigrationName> --project src/OpsSphere.Infrastructure --startup-project src/OpsSphere.Api --output-dir Persistence/Migrations
-```
-
-> **Security:** Never commit `.env` or real passwords. Use `appsettings.Development.json` (gitignored locally), .NET user secrets, or environment variables.
-> **Seed data:** Fictional seed data is applied by the API at startup only when the environment is `Development` or `Testing` and `SeedData:Enabled` is `true`.
-> **Local only:** These commands apply to local development. Do not apply migrations directly to production.
-
-## Local Seed Data
-
-OpsSphere includes deterministic fictional seed data for local development, demos, and automated tests. The seed uses fixed IDs and natural keys so it can be run repeatedly without creating duplicates.
-
-Seed execution is intentionally runtime-based through Infrastructure, not EF migration `HasData`. It runs only when both conditions are true:
-
-- ASP.NET Core environment is `Development` or `Testing`
-- `SeedData:Enabled` is `true`
-
-The local demo users are:
-
-| Email | Role | Scope |
-|---|---|---|
-| `admin@opssphere.local` | Admin | Role-based administrative access |
-| `manager.latam@opssphere.local` | OperationsManager | LATAM region |
-| `supervisor.novabank@opssphere.local` | Supervisor | NOVABANK account |
-| `agent.novabank@opssphere.local` | Agent | NOVABANK-CC campaign |
-| `viewer.latam@opssphere.local` | Viewer | LATAM region |
-
-The local/demo password is `OpsSphere123!`. It is hashed before persistence and is not stored as plaintext or logged. This password is for local development and demos only.
-
-Seeded organization data is fictional:
-
-- Regions: LATAM / Latin America, NA / North America
-- Countries: MX / Mexico, CO / Colombia, CR / Costa Rica, US / United States
-- Accounts: NovaBank, Streamly, Shopora, AeroLink
-- Campaigns: Credit Card Support, Fraud Review Support, Creator Support, Account Access Support, Travel Support
-
-No production secrets, real company data, customer data, employee data, tokens, or production credentials are committed.
-
-### Local Apply Flow
+### 1. Start the database
 
 ```bash
+cp .env.example .env
+# Edit .env and set MSSQL_SA_PASSWORD
+
 docker compose up -d
+2. Run the backend
+
 dotnet restore OpsSphere.slnx
 dotnet build OpsSphere.slnx
 dotnet ef database update --project src/OpsSphere.Infrastructure --startup-project src/OpsSphere.Api
 dotnet run --project src/OpsSphere.Api
-dotnet test OpsSphere.slnx
-```
+Add your connection string and a local JWT signing key to appsettings.Development.json (gitignored) or .NET user secrets. See appsettings.Development.json for the expected shape.
 
-### Local Reset Flow
+3. Run the frontend
 
-```bash
+cd frontend
+npm install
+npm start
+Frontend: http://localhost:4200 — API: https://localhost:7024 (or configured port in launchSettings.json).
+
+Reset local environment
+
 docker compose down -v
 docker compose up -d
 dotnet ef database update --project src/OpsSphere.Infrastructure --startup-project src/OpsSphere.Api
 dotnet run --project src/OpsSphere.Api
-```
+Demo Script
+A full guided walkthrough covering all five personas is in docs/release/mvp-demo-script.md.
 
-### Frontend API Base URL
-The Angular development environment is configured in `frontend/src/environments/environment.development.ts`. The `apiBaseUrl` property should point to your locally running backend API (e.g., `http://localhost:5000/api` or `https://localhost:7024/api` per `launchSettings.json`).
+Quick smoke test after setup:
 
-## Local JWT Authentication
 
-The API uses JWT bearer authentication for internal users. Local development needs these configuration values:
+POST /api/auth/login
+{ "email": "agent.novabank@opssphere.local", "password": "OpsSphere123!" }
+→ Returns bearer token
 
-```json
-"Jwt": {
-  "Issuer": "OpsSphere",
-  "Audience": "OpsSphere.Angular",
-  "ExpirationMinutes": 60,
-  "SigningKey": "<local-development-only-signing-key>"
-}
-```
+GET /api/auth/me
+Authorization: Bearer <token>
+→ Returns current user, role, and scope
 
-`appsettings.json` intentionally keeps `Jwt:SigningKey` blank. Use .NET user secrets, environment variables, or a clearly local-only development value. Do not commit production signing keys or real secrets. `appsettings.Development.json` contains only a fictional local signing key for developer convenience.
+GET /api/auth/protected-smoke
+→ 401 without token · 200 with valid token
+Test & Validation
 
-Seeded login users are fictional and share the local/demo password `OpsSphere123!`. Passwords are hashed before persistence, and passwords, password hashes, JWT tokens, Authorization headers, signing keys, and connection strings must not be logged.
+dotnet test OpsSphere.slnx
+Project	What It Covers
+OpsSphere.Domain.Tests	Enforces Domain has zero EF Core / Infrastructure dependencies
+OpsSphere.Application.Tests	Enforces Application has zero EF Core / Infrastructure dependencies
+OpsSphere.IntegrationTests	API smoke tests, EF Core model metadata, SLA and ticket workflow coverage
+CI documentation: docs/testing/ci-validation.md
 
-Useful auth smoke checks after the API starts:
+Integration test coverage: docs/testing/mvp-regression-tests.md
 
-```bash
-dotnet run --project src/OpsSphere.Api
-```
+Roadmap / Not Implemented Yet
+Intentional scope deferrals documented in docs/release/mvp-known-limitations.md:
 
-- `POST /api/auth/login` with `agent.novabank@opssphere.local` and `OpsSphere123!` should return a bearer token.
-- `GET /api/auth/me` should return 401 without a token and the current seeded profile with a valid token.
-- `GET /api/auth/protected-smoke` should return 401 without a token and 200 with a valid token.
+Feature	Phase
+Swagger / OpenAPI	Phase 2
+Reports module and CSV export	Phase 2
+Notifications (email, in-app)	Phase 2
+Business-hours SLA calendars	Phase 2
+Azure deployment configuration	Phase 2
+Application Insights integration	Phase 2
+Browser E2E tests (Playwright / Cypress)	Phase 2
+Customer portal	Out of scope
+Workforce management / scheduling	Out of scope
+Full BI / analytics platform	Out of scope
+Repository Structure
 
-## Release and Testing Documentation
+opssphere/
+├── src/
+│   ├── OpsSphere.Api/              # Thin controllers, middleware, composition root
+│   ├── OpsSphere.Application/      # CQRS commands, queries, handlers, validators
+│   ├── OpsSphere.Domain/           # Entities, business rules — no framework deps
+│   └── OpsSphere.Infrastructure/   # EF Core, SQL Server, JWT, Serilog, Identity
+│
+├── frontend/
+│   └── src/app/
+│       ├── core/                   # Auth service, guards, HTTP interceptors
+│       ├── features/               # Login, dashboard, tickets, customers, org, users
+│       └── shared/                 # Components, pipes, models
+│
+├── tests/
+│   ├── OpsSphere.Domain.Tests/
+│   ├── OpsSphere.Application.Tests/
+│   └── OpsSphere.IntegrationTests/
+│
+├── docs/
+│   ├── decisions/                  # Architecture Decision Records (ADRs)
+│   ├── release/                    # Demo script, release checklist, known limitations
+│   └── testing/                    # CI validation, regression coverage
+│
+├── docker-compose.yml              # Local SQL Server
+└── .github/workflows/              # GitHub Actions CI pipeline
+Documentation
+OpsSphere includes a full enterprise documentation suite built alongside the code:
 
-| Document | Purpose |
-|---|---|
-| [docs/release/mvp-demo-script.md](docs/release/mvp-demo-script.md) | Guided demo walkthrough for all personas |
-| [docs/release/mvp-release-checklist.md](docs/release/mvp-release-checklist.md) | Final release gate checklist |
-| [docs/release/mvp-uat-checklist.md](docs/release/mvp-uat-checklist.md) | Role-based UAT checklist |
-| [docs/release/mvp-known-limitations.md](docs/release/mvp-known-limitations.md) | Intentional scope boundaries and deferrals |
-| [docs/testing/ci-validation.md](docs/testing/ci-validation.md) | GitHub Actions CI jobs, commands, and failure triage |
-| [docs/testing/mvp-regression-tests.md](docs/testing/mvp-regression-tests.md) | Automated integration test coverage description |
-
-## Documentation Approach
-
-OpsSphere follows a practical enterprise documentation workflow inspired by:
-
-- Business Analysis practices for business needs, stakeholders, requirements, and process modeling.
-- Project Management practices for project definition, scope, risks, and approval criteria.
-- Software Architecture documentation practices for architecture decisions, system context, deployment view, and quality attributes.
-- C4 and UML diagrams for visual communication of architecture, use cases, domain models, and runtime behavior.
-
-The documentation is organized from business understanding to technical implementation:
-
-1. Business Discovery
-2. Project Definition
-3. Requirements Analysis
-4. Process and Domain Modeling
-5. Architecture and Technical Design
-6. Delivery Planning
-
-## Implementation Guardrails
-
-Implementation work should follow `docs/22-implementation-guardrails.md` for issue scope, branch naming, PR validation, architecture boundaries, MVP limits, and Definition of Done.
+Document	Purpose
+Executive Summary	Business problem, target users, platform value
+Architecture Overview	Clean Architecture design, runtime flows, quality goals
+C4 Architecture	System context, container, and component diagrams
+Domain Model	Core business entities and relationships
+Security & Permissions	Role-based + scope-based access design
+API Design	Endpoint structure and contracts
+Database Design	ERD and schema decisions
+ADRs	Architecture Decision Records
+Demo Script	Guided walkthrough for all five personas
+Known Limitations	Intentional MVP scope boundaries
+All organization names, customer names, and operational data in this project are fictional.
